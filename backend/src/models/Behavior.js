@@ -6,6 +6,7 @@ const behaviorSchema = new mongoose.Schema(
       type: String,
       required: [true, 'Behavior type is required'],
       enum: [
+        // Existing types
         'process_injection',
         'file_drop',
         'persistence',
@@ -24,6 +25,20 @@ const behaviorSchema = new mongoose.Schema(
         'exfiltration',
         'ransomware_behavior',
         'other',
+        // New types for static analysis
+        'network_communication_capability',
+        'file_manipulation',
+        'process_manipulation',
+        'persistence_capability',
+        'registry_manipulation',
+        'anti_analysis',
+        'crypto_encryption',
+        'command_execution_capability',
+        'data_theft',
+        'suspicious_import',
+        'suspicious_strings',
+        'high_entropy',
+        'yara_match',
       ],
       index: true,
     },
@@ -38,12 +53,10 @@ const behaviorSchema = new mongoose.Schema(
       enum: ['low', 'medium', 'high', 'critical'],
       index: true,
     },
-    // Evidence supporting this behavior
     evidence: [{
       type: String,
       trim: true,
     }],
-    // Source of the behavior
     source: {
       type: String,
       required: [true, 'Source is required'],
@@ -61,14 +74,12 @@ const behaviorSchema = new mongoose.Schema(
       required: [true, 'Analysis reference is required'],
       index: true,
     },
-    // Confidence score
     confidence: {
       type: Number,
       min: 0,
       max: 1,
       default: 0.5,
     },
-    // Correlation data
     correlation: {
       relatedBehaviors: [{
         type: mongoose.Schema.Types.ObjectId,
@@ -76,17 +87,14 @@ const behaviorSchema = new mongoose.Schema(
       }],
       correlationScore: Number,
     },
-    // References to specific events
     eventReferences: [{
       type: String,
       description: String,
     }],
-    // Malware family association
     malwareFamily: {
       type: String,
       trim: true,
     },
-    // MITRE ATT&CK mapping
     mitre: {
       tactic: String,
       technique: String,
@@ -97,7 +105,6 @@ const behaviorSchema = new mongoose.Schema(
       type: String,
       trim: true,
     }],
-    // User notes
     notes: {
       type: String,
       trim: true,
@@ -118,10 +125,10 @@ const behaviorSchema = new mongoose.Schema(
 );
 
 // Indexes
-// behaviorSchema.index({ sample: 1, createdAt: -1 });
-// behaviorSchema.index({ analysis: 1 });
-// behaviorSchema.index({ type: 1, severity: 1 });
-// behaviorSchema.index({ 'mitre.techniqueId': 1 });
+behaviorSchema.index({ sample: 1, createdAt: -1 });
+behaviorSchema.index({ analysis: 1 });
+behaviorSchema.index({ type: 1, severity: 1 });
+behaviorSchema.index({ 'mitre.techniqueId': 1 });
 
 // Static methods
 behaviorSchema.statics.getForSample = function (sampleId) {

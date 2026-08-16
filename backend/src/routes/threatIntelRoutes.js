@@ -3,105 +3,38 @@ const router = express.Router();
 const ThreatIntelController = require('../controllers/threatIntelController');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 
-/**
- * @route   GET /api/v1/threat-intel/iocs/search
- * @desc    Search IOCs
- * @access  Private
- */
-router.get(
-  '/iocs/search',
-  authenticate,
-  ThreatIntelController.searchIOCs
-);
+// ===== Existing IOC routes =====
+router.get('/iocs/search', authenticate, ThreatIntelController.searchIOCs);
+router.get('/iocs/stats', authenticate, ThreatIntelController.getIOCStats);
+router.get('/iocs/:id', authenticate, ThreatIntelController.getIOC);
+router.patch('/iocs/:id', authenticate, authorize(['analyst', 'admin']), ThreatIntelController.updateIOC);
+router.delete('/iocs/:id', authenticate, authorize(['admin']), ThreatIntelController.deleteIOC);
+router.get('/samples/:sampleId/iocs', authenticate, ThreatIntelController.getIOCsForSample);
 
-/**
- * @route   GET /api/v1/threat-intel/iocs/stats
- * @desc    Get IOC statistics
- * @access  Private
- */
-router.get(
-  '/iocs/stats',
-  authenticate,
-  ThreatIntelController.getIOCStats
-);
+// ===== NEW: Configuration Indicators =====
+router.get('/config/samples/:sampleId', authenticate, ThreatIntelController.getConfigIndicators);
+router.get('/config/search', authenticate, ThreatIntelController.searchConfigIndicators);
+router.get('/config/stats', authenticate, ThreatIntelController.getConfigStats);
+router.delete('/config/:id', authenticate, authorize(['admin']), ThreatIntelController.deleteConfigIndicator);
 
-/**
- * @route   GET /api/v1/threat-intel/iocs/:id
- * @desc    Get IOC by ID
- * @access  Private
- */
-router.get(
-  '/iocs/:id',
-  authenticate,
-  ThreatIntelController.getIOC
-);
+// ===== NEW: Similarity =====
+router.get('/similarity/samples/:sampleId', authenticate, ThreatIntelController.getSimilarityResults);
+router.get('/similarity/related/:sampleId', authenticate, ThreatIntelController.getRelatedSamples);
 
-/**
- * @route   PATCH /api/v1/threat-intel/iocs/:id
- * @desc    Update IOC
- * @access  Private (Requires appropriate role)
- */
-router.patch(
-  '/iocs/:id',
-  authenticate,
-  authorize(['analyst', 'admin']),
-  ThreatIntelController.updateIOC
-);
+// ===== NEW: Malware Families =====
+router.get('/families', authenticate, ThreatIntelController.listFamilies);
+router.get('/families/top', authenticate, ThreatIntelController.getTopFamilies);
+router.get('/families/:id', authenticate, ThreatIntelController.getFamilyById);
+router.get('/families/name/:name', authenticate, ThreatIntelController.getFamilyByName);
+router.get('/families/sample/:sampleId', authenticate, ThreatIntelController.getFamilyForSample);
+router.post('/families', authenticate, authorize(['analyst', 'admin']), ThreatIntelController.createFamily);
+router.post('/families/:id/sample', authenticate, authorize(['analyst', 'admin']), ThreatIntelController.addSampleToFamily);
+router.delete('/families/:id/sample/:sampleId', authenticate, authorize(['admin']), ThreatIntelController.removeSampleFromFamily);
+router.delete('/families/:id', authenticate, authorize(['admin']), ThreatIntelController.deleteFamily);
 
-/**
- * @route   DELETE /api/v1/threat-intel/iocs/:id
- * @desc    Delete IOC
- * @access  Private (Admin only)
- */
-router.delete(
-  '/iocs/:id',
-  authenticate,
-  authorize(['admin']),
-  ThreatIntelController.deleteIOC
-);
-
-/**
- * @route   GET /api/v1/threat-intel/samples/:sampleId/iocs
- * @desc    Get IOCs for a sample
- * @access  Private
- */
-router.get(
-  '/samples/:sampleId/iocs',
-  authenticate,
-  ThreatIntelController.getIOCsForSample
-);
-
-/**
- * @route   GET /api/v1/threat-intel/virustotal/:hash
- * @desc    Lookup hash in VirusTotal
- * @access  Private
- */
-router.get(
-  '/virustotal/:hash',
-  authenticate,
-  ThreatIntelController.lookupVT
-);
-
-/**
- * @route   GET /api/v1/threat-intel/related/:type/:value
- * @desc    Get related samples by IOC
- * @access  Private
- */
-router.get(
-  '/related/:type/:value',
-  authenticate,
-  ThreatIntelController.getRelatedSamples
-);
-
-/**
- * @route   GET /api/v1/threat-intel/summary
- * @desc    Get threat intelligence summary
- * @access  Private
- */
-router.get(
-  '/summary',
-  authenticate,
-  ThreatIntelController.getSummary
-);
+// ===== Existing VirusTotal route =====
+router.get('/virustotal/:hash', authenticate, ThreatIntelController.lookupVT);
+router.get('/related/:type/:value', authenticate, ThreatIntelController.getRelatedSamples);
+router.get('/summary', authenticate, ThreatIntelController.getSummary);
 
 module.exports = router;

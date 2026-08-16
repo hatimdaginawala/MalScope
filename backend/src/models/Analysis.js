@@ -5,12 +5,9 @@ const ANALYSIS_STATUS = {
   PREPARING: 'preparing',
   STATIC_ANALYSIS: 'static_analysis',
   VT_ENRICHMENT: 'vt_enrichment',
-  DYNAMIC_ANALYSIS: 'dynamic_analysis',
-  COLLECTING: 'collecting',
   CORRELATING: 'correlating',
   COMPLETED: 'completed',
   FAILED: 'failed',
-  CLEANUP: 'cleanup',
 };
 
 const analysisSchema = new mongoose.Schema(
@@ -42,35 +39,77 @@ const analysisSchema = new mongoose.Schema(
       timestamp: Date,
       stack: String,
     },
+    
+    // ===== Static Analysis =====
     staticAnalysis: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'StaticAnalysis',
     },
-    dynamicAnalysis: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'DynamicAnalysis',
-    },
+    
+    // ===== REMOVED: dynamicAnalysis - NO LONGER IN SCOPE =====
+    // dynamicAnalysis: {
+    //   type: mongoose.Schema.Types.ObjectId,
+    //   ref: 'DynamicAnalysis',
+    // },
+    
+    // ===== VirusTotal =====
     virusTotalReport: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'VirusTotalReport',
     },
+    
+    // ===== New Models =====
+    configurationIndicators: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ConfigurationIndicator',
+    }],
+    
+    similarityResults: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'SimilarityResult',
+    }],
+    
+    malwareFamily: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'MalwareFamily',
+    },
+    
+    // ===== Keep existing =====
+    iocs: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'IOC',
+    }],
+    
+    behaviors: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Behavior',
+    }],
+    
     threatAssessment: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ThreatAssessment',
     },
+    
+    report: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Report',
+    },
+    
+    // Analysis environment
     environment: {
       nodeVersion: String,
       pythonVersion: String,
-      vmName: String,
-      vmSnapshot: String,
     },
+    
     analysisVersion: {
       type: String,
-      default: '1.0.0',
+      default: '2.0.0',
     },
+    
     duration: {
       type: Number,
     },
+    
     logs: [{
       timestamp: Date,
       level: {
@@ -79,6 +118,7 @@ const analysisSchema = new mongoose.Schema(
       },
       message: String,
     }],
+    
     completed: {
       type: Boolean,
       default: false,
@@ -99,35 +139,16 @@ analysisSchema.statics.getStatusEnum = function () {
 };
 
 analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
-  // Define valid transitions
   const validTransitions = {
     'queued': ['preparing', 'failed'],
     'preparing': ['static_analysis', 'failed'],
-    'static_analysis': ['vt_enrichment', 'dynamic_analysis', 'failed'],
-    'vt_enrichment': ['dynamic_analysis', 'completed', 'failed'],
-    'dynamic_analysis': ['collecting', 'failed'],
-    'collecting': ['correlating', 'failed'],
+    'static_analysis': ['vt_enrichment', 'completed', 'failed'],
+    'vt_enrichment': ['correlating', 'completed', 'failed'],
     'correlating': ['completed', 'failed'],
     'completed': [],
-    'failed': ['cleanup'],
-    'cleanup': [],
+    'failed': [],
   };
 
-  // Allow cleanup from any state
-  if (newStatus === 'cleanup') {
-    this.status = newStatus;
-    this.stage = newStatus;
-    if (logMessage) {
-      this.logs.push({
-        timestamp: new Date(),
-        level: 'info',
-        message: logMessage,
-      });
-    }
-    return this;
-  }
-
-  // Validate transition
   const allowed = validTransitions[this.status] || [];
   if (!allowed.includes(newStatus) && this.status !== newStatus) {
     throw new Error(
@@ -135,11 +156,9 @@ analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
     );
   }
 
-  // Update status
   this.status = newStatus;
   this.stage = newStatus;
 
-  // Set timestamps
   if (newStatus === 'completed') {
     this.completedAt = new Date();
     this.completed = true;
@@ -152,12 +171,10 @@ analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
     this.completed = false;
   }
 
-  // Set startedAt when first starting
   if (newStatus === 'queued' && !this.startedAt) {
     this.startedAt = new Date();
   }
 
-  // Add log
   if (logMessage) {
     this.logs.push({
       timestamp: new Date(),

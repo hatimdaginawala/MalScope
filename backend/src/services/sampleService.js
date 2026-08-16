@@ -238,13 +238,15 @@ static async uploadSample(fileBuffer, filename, userId = null) {
 
       // Get latest analysis
       const latestAnalysis = await Analysis.findOne({ sample: sampleId })
-        .sort({ createdAt: -1 })
-        .populate('staticAnalysis')
-        .populate('dynamicAnalysis')
-        .populate('virusTotalReport')
-        .populate('threatAssessment')
-        .lean();
-
+      .sort({ createdAt: -1 })
+      .populate('staticAnalysis')
+      // .populate('dynamicAnalysis') // REMOVED
+      .populate('virusTotalReport')
+      .populate('threatAssessment')
+      .populate('configurationIndicators')
+      .populate('similarityResults')
+      .populate('malwareFamily')
+      .lean();
       return {
         ...sample,
         latestAnalysis,

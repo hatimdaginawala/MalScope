@@ -15,11 +15,15 @@ class AnalysisService {
       const analysis = await Analysis.findById(analysisId)
         .populate('sample')
         .populate('staticAnalysis')
-        .populate('dynamicAnalysis')
+        // .populate('dynamicAnalysis') // REMOVED - no longer in scope
         .populate('virusTotalReport')
         .populate('threatAssessment')
+        .populate('configurationIndicators')
+        .populate('similarityResults')
+        .populate('malwareFamily')
+        .populate('iocs')
+        .populate('behaviors')
         .lean();
-
       if (!analysis) {
         throw new ApiError(404, 'Analysis not found');
       }
@@ -44,7 +48,7 @@ class AnalysisService {
           .skip(skip)
           .limit(limit)
           .populate('staticAnalysis')
-          .populate('dynamicAnalysis')
+          // .populate('dynamicAnalysis')
           .populate('virusTotalReport')
           .populate('threatAssessment')
           .lean(),

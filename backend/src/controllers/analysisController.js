@@ -1,6 +1,6 @@
 const AnalysisService = require('../services/analysisService');
 const StaticAnalysisService = require('../services/staticAnalysisService');
-const DynamicAnalysisService = require('../services/dynamicAnalysisService');
+// const DynamicAnalysisService = require('../services/dynamicAnalysisService');
 const VirusTotalService = require('../services/virusTotalService');
 const CorrelationService = require('../services/correlationService');
 const RiskService = require('../services/riskService');

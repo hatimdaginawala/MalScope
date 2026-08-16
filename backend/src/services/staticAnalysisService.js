@@ -3,7 +3,11 @@ const MalwareSample = require('../models/MalwareSample');
 const { Analysis } = require('../models/Analysis');
 const AnalysisService = require('./analysisService');
 const PythonAnalysisService = require('./pythonAnalysisService');
+const IOCService = require('./iocService');
 const IOC = require('../models/IOC');
+const ConfigurationService = require('./configurationService');
+const SimilarityService = require('./similarityService');
+const FamilyIntelligenceService = require('./familyIntelligenceService');
 const logger = require('../utils/logger');
 const { ApiError } = require('../middleware/errorMiddleware');
 
@@ -27,6 +31,7 @@ class StaticAnalysisService {
         throw new ApiError(404, 'Sample not found');
       }
 
+      // Run Python static analysis
       let pythonResult;
       try {
         pythonResult = await PythonAnalysisService.runStaticAnalysis(sample.storagePath);
@@ -60,36 +65,34 @@ class StaticAnalysisService {
         processingDuration: pythonResult.duration || 0,
         warnings: pythonResult.warnings || [],
         errors: pythonResult.errors || [],
-        version: '1.0.0',
+        version: '2.0.0',
         rawResult: result,
       });
 
       await staticAnalysis.save();
 
-      // ===== Extract IOCs from Python result =====
+      // ===== Extract and save IOCs =====
       const pythonIOCs = result.iocs || [];
       logger.info(`Found ${pythonIOCs.length} IOCs from Python analysis`);
       
-      let savedCount = 0;
+      let savedIOCCount = 0;
+      const iocIds = [];
       for (const iocData of pythonIOCs) {
         try {
           const type = iocData.type || 'other';
           const value = iocData.value || '';
           
-          if (!value) {
-            logger.warn(`Skipping IOC with empty value`);
-            continue;
-          }
+          if (!value) continue;
           
           const normalizedValue = value.toLowerCase().trim();
           
-          // Check if IOC already exists for this sample
           const existing = await IOC.findOne({
             sample: sample._id,
             type: type,
             normalizedValue: normalizedValue,
           });
           
+          let ioc;
           if (!existing) {
             const newIOC = new IOC({
               type: type,
@@ -97,7 +100,7 @@ class StaticAnalysisService {
               normalizedValue: normalizedValue,
               source: 'static_analysis',
               sample: sample._id,
-              analysis: analysisId,  // <-- IMPORTANT: Set analysis ID
+              analysis: analysisId,
               confidence: iocData.confidence || 0.5,
               severity: 'medium',
               context: iocData.context || {},
@@ -105,27 +108,56 @@ class StaticAnalysisService {
               firstSeen: new Date(),
               lastSeen: new Date(),
             });
-            await newIOC.save();
-            savedCount++;
-            logger.debug(`Saved IOC: ${type}:${value}`);
+            ioc = await newIOC.save();
           } else {
             existing.lastSeen = new Date();
             existing.confidence = Math.max(existing.confidence, iocData.confidence || 0.5);
-            await existing.save();
-            savedCount++;
+            ioc = await existing.save();
           }
+          iocIds.push(ioc._id);
+          savedIOCCount++;
         } catch (iocError) {
           logger.warn(`Failed to save IOC: ${iocError.message}`);
         }
       }
-      
-      logger.info(`Saved ${savedCount} IOCs for sample ${sample._id}`);
+      logger.info(`Saved ${savedIOCCount} IOCs for sample ${sample._id}`);
 
-      // Update analysis with staticAnalysis reference
+      // ===== Extract and save Configuration Indicators =====
+      const configIndicators = this._extractConfigurationIndicators(result);
+      const savedConfigs = await ConfigurationService.saveIndicators(
+        sample._id,
+        analysisId,
+        configIndicators,
+        'string'
+      );
+      const configIds = savedConfigs.map(c => c._id);
+
+      // ===== Extract Static Behavioral Inferences =====
+      const behaviors = this._inferBehaviors(result);
+      const savedBehaviors = await this._saveBehaviors(analysisId, sample._id, behaviors);
+      const behaviorIds = savedBehaviors.map(b => b._id);
+
+      // ===== Extract Findings (already in result) =====
+      const findingIds = [];
+      const findings = result.findings || [];
+      for (const finding of findings) {
+        // Findings are stored in StaticAnalysis, but we can also store them separately
+        // This is for future reference
+      }
+
+      // ===== Update analysis with references =====
       await Analysis.updateOne(
         { _id: analysisId },
-        { staticAnalysis: staticAnalysis._id }
+        {
+          staticAnalysis: staticAnalysis._id,
+          iocs: iocIds,
+          configurationIndicators: configIds,
+          behaviors: behaviorIds,
+        }
       );
+
+      // ===== VirusTotal Enrichment =====
+      // This will be handled by the next stage (vt_enrichment)
 
       await AnalysisService.addLog(analysisId, 'Static analysis completed successfully', 'info');
 
@@ -133,6 +165,8 @@ class StaticAnalysisService {
         staticAnalysis,
         pythonResult,
         iocs: pythonIOCs,
+        configIndicators: configIndicators,
+        behaviors: behaviors,
         warnings: pythonResult.warnings || [],
         errors: pythonResult.errors || [],
       };
@@ -140,6 +174,351 @@ class StaticAnalysisService {
       logger.error(`Static analysis failed: ${error.message}`, { error });
       throw error;
     }
+  }
+
+  /**
+   * Extract configuration indicators from static analysis results
+   */
+  static _extractConfigurationIndicators(result) {
+    const indicators = [];
+    const strings = result.strings || {};
+    const allStrings = [...(strings.ascii || []), ...(strings.unicode || [])];
+
+    // Domain pattern
+    const domainPattern = /\b[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}\b/g;
+    const ipPattern = /\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b/g;
+    const urlPattern = /https?:\/\/[^\s<>"']+/g;
+    const filePathPattern = /[A-Za-z]:\\[^\\\s<>"']+\\[^\\\s<>"']+/g;
+    const registryPattern = /[A-Za-z_][A-Za-z0-9_]*\\[A-Za-z_][A-Za-z0-9_]*\\[A-Za-z_][A-Za-z0-9_]*/g;
+
+    const seen = new Set();
+
+    for (const str of allStrings) {
+      // Extract domains (skip common Windows DLLs)
+      const domains = str.match(domainPattern) || [];
+      for (const domain of domains) {
+        const key = `domain:${domain}`;
+        if (!seen.has(key) && !domain.endsWith('.dll') && !domain.endsWith('.exe')) {
+          seen.add(key);
+          indicators.push({
+            type: 'c2_domain',
+            value: domain,
+            confidence: 0.4,
+            severity: 'medium',
+            evidence: str,
+            tags: ['domain', 'string_analysis'],
+          });
+        }
+      }
+
+      // Extract IPs
+      const ips = str.match(ipPattern) || [];
+      for (const ip of ips) {
+        const key = `ip:${ip}`;
+        if (!seen.has(key) && !ip.startsWith('192.168.') && !ip.startsWith('10.') && !ip.startsWith('172.')) {
+          seen.add(key);
+          indicators.push({
+            type: 'c2_ip',
+            value: ip,
+            confidence: 0.5,
+            severity: 'high',
+            evidence: str,
+            tags: ['ip', 'string_analysis'],
+          });
+        }
+      }
+
+      // Extract URLs
+      const urls = str.match(urlPattern) || [];
+      for (const url of urls) {
+        const key = `url:${url}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          indicators.push({
+            type: 'c2_url',
+            value: url,
+            confidence: 0.5,
+            severity: 'high',
+            evidence: str,
+            tags: ['url', 'string_analysis'],
+          });
+        }
+      }
+
+      // Extract file paths
+      const filePaths = str.match(filePathPattern) || [];
+      for (const path of filePaths) {
+        const key = `file_path:${path}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          indicators.push({
+            type: 'file_path',
+            value: path,
+            confidence: 0.3,
+            severity: 'low',
+            evidence: str,
+            tags: ['file_path', 'string_analysis'],
+          });
+        }
+      }
+
+      // Extract registry paths
+      const registryPaths = str.match(registryPattern) || [];
+      for (const regPath of registryPaths) {
+        const key = `registry_path:${regPath}`;
+        if (!seen.has(key)) {
+          seen.add(key);
+          indicators.push({
+            type: 'registry_path',
+            value: regPath,
+            confidence: 0.4,
+            severity: 'medium',
+            evidence: str,
+            tags: ['registry', 'string_analysis'],
+          });
+        }
+      }
+
+      // Check for mutex-like strings
+      const mutexPatterns = [
+        /Global\\[A-Za-z0-9_\-]+/,
+        /Local\\[A-Za-z0-9_\-]+/,
+        /[A-Za-z0-9_\-]{8}-[A-Za-z0-9_\-]{4}-[A-Za-z0-9_\-]{4}-[A-Za-z0-9_\-]{4}-[A-Za-z0-9_\-]{12}/,
+        /_[A-Za-z0-9_\-]{10,}/,
+      ];
+      for (const pattern of mutexPatterns) {
+        const matches = str.match(pattern) || [];
+        for (const match of matches) {
+          const key = `mutex:${match}`;
+          if (!seen.has(key) && match.length > 8) {
+            seen.add(key);
+            indicators.push({
+              type: 'mutex',
+              value: match,
+              confidence: 0.3,
+              severity: 'low',
+              evidence: str,
+              tags: ['mutex', 'string_analysis'],
+            });
+          }
+        }
+      }
+    }
+
+    // Check YARA matches for config indicators
+    const yaraMatches = result.yaraMatches || [];
+    for (const match of yaraMatches) {
+      if (match.meta && match.meta.config) {
+        indicators.push({
+          type: 'other',
+          value: `YARA:${match.ruleName}`,
+          confidence: 0.7,
+          severity: 'high',
+          evidence: `YARA rule ${match.ruleName} matched`,
+          tags: ['yara', 'config'],
+        });
+      }
+    }
+
+    return indicators;
+  }
+
+  /**
+   * Infer static behaviors from analysis results
+   */
+static _inferBehaviors(result) {
+  const behaviors = [];
+  const imports = result.imports || [];
+  const strings = result.strings || {};
+  const allStrings = [...(strings.ascii || []), ...(strings.unicode || [])];
+  const findings = result.findings || [];
+
+  // Define capability categories and their indicators with valid enum types
+  const capabilityMap = {
+    'network_communication': {
+      type: 'network_communication',
+      imports: ['WinHttpOpen', 'HttpOpenRequest', 'InternetOpen', 'URLDownloadToFile', 'InternetConnect'],
+      strings: ['http://', 'https://', '.onion', '.tor', 'User-Agent'],
+      yaraKeywords: ['network', 'web', 'http'],
+      weight: 0.6,
+    },
+    'file_manipulation': {
+      type: 'file_drop',
+      imports: ['CreateFile', 'WriteFile', 'ReadFile', 'DeleteFile', 'CopyFile', 'MoveFile'],
+      strings: ['\\Temp\\', '\\AppData\\', '\\.exe', '\\.dll'],
+      yaraKeywords: ['file', 'write', 'delete'],
+      weight: 0.5,
+    },
+    'process_manipulation': {
+      type: 'process_injection',
+      imports: ['CreateProcess', 'CreateRemoteThread', 'WriteProcessMemory', 'ReadProcessMemory', 'VirtualAllocEx'],
+      strings: ['CreateProcess', 'WriteProcessMemory', 'VirtualAlloc'],
+      yaraKeywords: ['process', 'thread', 'inject'],
+      weight: 0.6,
+    },
+    'persistence': {
+      type: 'persistence',
+      imports: ['RegSetValueEx', 'CreateService', 'StartService', 'SchTasks'],
+      strings: ['CurrentVersion\\Run', 'CurrentVersion\\RunOnce', 'Schedule', 'Service'],
+      yaraKeywords: ['persistence', 'registry', 'service'],
+      weight: 0.5,
+    },
+    'registry_manipulation': {
+      type: 'registry_modification',
+      imports: ['RegCreateKeyEx', 'RegSetValueEx', 'RegDeleteKey', 'RegQueryValueEx'],
+      strings: ['SYSTEM\\CurrentControlSet', 'Software\\Microsoft\\Windows'],
+      yaraKeywords: ['registry', 'regkey'],
+      weight: 0.4,
+    },
+    'anti_analysis': {
+      type: 'anti_debug',
+      imports: ['IsDebuggerPresent', 'CheckRemoteDebuggerPresent', 'NtQueryInformationProcess'],
+      strings: ['vmware', 'virtualbox', 'sandbox', 'debugger'],
+      yaraKeywords: ['anti', 'debug', 'sandbox'],
+      weight: 0.5,
+    },
+    'command_execution': {
+      type: 'command_execution',
+      imports: ['CreateProcess', 'WinExec', 'ShellExecute', 'system'],
+      strings: ['cmd.exe', 'powershell.exe', 'wscript.exe', 'cscript.exe'],
+      yaraKeywords: ['command', 'execute', 'shell'],
+      weight: 0.5,
+    },
+    'data_theft': {
+      type: 'collection',
+      imports: ['FindFirstFile', 'FindNextFile', 'ReadFile', 'GetClipboardData', 'GetAsyncKeyState'],
+      strings: ['steal', 'keylog', 'clipboard', 'screenshot'],
+      yaraKeywords: ['steal', 'exfil', 'keylog'],
+      weight: 0.4,
+    },
+    'privilege_escalation': {
+      type: 'privilege_escalation',
+      imports: ['LookupPrivilegeValue', 'AdjustTokenPrivileges', 'OpenProcessToken'],
+      strings: ['SeDebugPrivilege', 'SeShutdownPrivilege', 'SeTakeOwnershipPrivilege'],
+      yaraKeywords: ['privilege', 'token', 'escalate'],
+      weight: 0.5,
+    },
+    'defense_evasion': {
+      type: 'defense_evasion',
+      imports: ['VirtualProtect', 'WriteProcessMemory', 'NtSetInformationProcess'],
+      strings: ['hide', 'evade', 'bypass', 'disable'],
+      yaraKeywords: ['evasion', 'obfuscate', 'hide'],
+      weight: 0.5,
+    },
+    'ransomware': {
+      type: 'ransomware_behavior',
+      imports: ['CryptEncrypt', 'CryptDecrypt', 'RtlEncryptMemory'],
+      strings: ['encrypt', 'ransom', 'decrypt', 'bitcoin', 'wallet'],
+      yaraKeywords: ['ransomware', 'encrypt', 'ransom'],
+      weight: 0.6,
+    },
+  };
+
+  // Track matched capabilities
+  const matchedCapabilities = {};
+
+  // Check imports
+  const importFuncs = new Set();
+  for (const imp of imports) {
+    for (const func of imp.functions || []) {
+      importFuncs.add(func);
+    }
+  }
+
+  for (const [key, data] of Object.entries(capabilityMap)) {
+    let confidence = 0;
+    const evidence = [];
+
+    // Check imports
+    for (const imp of data.imports) {
+      if (importFuncs.has(imp)) {
+        confidence += 0.2;
+        evidence.push(`Import: ${imp}`);
+      }
+    }
+
+    // Check strings
+    for (const str of data.strings) {
+      const found = allStrings.some(s => s.toLowerCase().includes(str.toLowerCase()));
+      if (found) {
+        confidence += 0.1;
+        evidence.push(`String: "${str}"`);
+      }
+    }
+
+    // Check YARA matches
+    const yaraMatches = result.yaraMatches || [];
+    for (const keyword of data.yaraKeywords) {
+      if (yaraMatches.some(m => m.ruleName.toLowerCase().includes(keyword))) {
+        confidence += 0.15;
+        evidence.push(`YARA: ${keyword}`);
+      }
+    }
+
+    // Check findings
+    for (const finding of findings) {
+      if (finding.description && finding.description.toLowerCase().includes(key)) {
+        confidence += 0.1;
+        evidence.push(`Finding: ${finding.description}`);
+      }
+    }
+
+    // Cap confidence at 1.0
+    confidence = Math.min(confidence, 1.0);
+
+    if (confidence > 0.2 && evidence.length > 0) {
+      matchedCapabilities[key] = {
+        type: data.type,
+        confidence,
+        evidence: evidence.slice(0, 5),
+      };
+    }
+  }
+
+  // Create behavior objects
+  for (const [key, data] of Object.entries(matchedCapabilities)) {
+    const severity = data.confidence > 0.7 ? 'high' : data.confidence > 0.4 ? 'medium' : 'low';
+    const categoryName = key.replace(/_/g, ' ');
+    behaviors.push({
+      type: data.type,
+      description: `Static indicators suggest potential ${categoryName} capability`,
+      severity: severity,
+      confidence: data.confidence,
+      evidence: data.evidence,
+      source: 'static_analysis',
+      timestamp: new Date(),
+    });
+  }
+
+  return behaviors;
+}
+
+  /**
+   * Save behaviors to database
+   */
+  static async _saveBehaviors(analysisId, sampleId, behaviors) {
+    const Behavior = require('../models/Behavior');
+    const saved = [];
+
+    for (const behavior of behaviors) {
+      const newBehavior = new Behavior({
+        type: behavior.type,
+        description: behavior.description,
+        severity: behavior.severity,
+        confidence: behavior.confidence,
+        evidence: behavior.evidence,
+        source: 'static_analysis',
+        sample: sampleId,
+        analysis: analysisId,
+        mitre: {}, // Will be enriched later
+        tags: [],
+      });
+      await newBehavior.save();
+      saved.push(newBehavior);
+    }
+
+    logger.info(`Saved ${saved.length} behaviors for sample ${sampleId}`);
+    return saved;
   }
 
   static async getResults(analysisId) {

@@ -19,10 +19,22 @@ const authRoutes = require('./routes/authRoutes');
 const sampleRoutes = require('./routes/sampleRoutes');
 const analysisRoutes = require('./routes/analysisRoutes');
 const staticAnalysisRoutes = require('./routes/staticAnalysisRoutes');
-const dynamicAnalysisRoutes = require('./routes/dynamicAnalysisRoutes');
 const threatIntelRoutes = require('./routes/threatIntelRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+
+// Import models
+require('./models/User');
+require('./models/MalwareSample');
+require('./models/Analysis');
+require('./models/StaticAnalysis');
+require('./models/VirusTotalReport');
+require('./models/IOC');
+require('./models/Behavior');
+require('./models/ThreatAssessment');
+require('./models/ConfigurationIndicator');
+require('./models/SimilarityResult');
+require('./models/MalwareFamily');
 
 // Initialize Express
 const app = express();
@@ -58,7 +70,6 @@ app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/samples', sampleRoutes);
 app.use('/api/v1/analyses', analysisRoutes);
 app.use('/api/v1/analyses', staticAnalysisRoutes);
-app.use('/api/v1/analyses', dynamicAnalysisRoutes);
 app.use('/api/v1/threat-intel', threatIntelRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
@@ -81,6 +92,8 @@ const startServer = async () => {
       logger.info(`🔐 Auth: http://localhost:${environment.port}/api/v1/auth`);
       logger.info(`📁 Samples: http://localhost:${environment.port}/api/v1/samples`);
       logger.info(`🔬 Analyses: http://localhost:${environment.port}/api/v1/analyses`);
+      logger.info(`🔎 Threat Intel: http://localhost:${environment.port}/api/v1/threat-intel`);
+      logger.info(`📄 Reports: http://localhost:${environment.port}/api/v1/reports`);
     });
   } catch (error) {
     logger.error(`Failed to start server: ${error.message}`);
