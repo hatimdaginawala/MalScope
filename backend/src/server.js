@@ -8,6 +8,16 @@ const { connectDB } = require('./config/database');
 const logger = require('./utils/logger');
 const { errorHandler, notFoundHandler } = require('./middleware/errorMiddleware');
 
+// Import routes
+const authRoutes = require('./routes/authRoutes');
+const sampleRoutes = require('./routes/sampleRoutes');
+const analysisRoutes = require('./routes/analysisRoutes');
+const staticAnalysisRoutes = require('./routes/staticAnalysisRoutes');
+const dynamicAnalysisRoutes = require('./routes/dynamicAnalysisRoutes');
+const threatIntelRoutes = require('./routes/threatIntelRoutes');
+const reportRoutes = require('./routes/reportRoutes');
+const dashboardRoutes = require('./routes/dashboardRoutes');
+
 // Initialize Express
 const app = express();
 
@@ -37,7 +47,15 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// Additional API routes will be added here in later phases
+// API Routes
+app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/samples', sampleRoutes);
+app.use('/api/v1/analyses', analysisRoutes);
+app.use('/api/v1/analyses', staticAnalysisRoutes);
+app.use('/api/v1/analyses', dynamicAnalysisRoutes);
+app.use('/api/v1/threat-intel', threatIntelRoutes);
+app.use('/api/v1/reports', reportRoutes);
+app.use('/api/v1/dashboard', dashboardRoutes);
 
 // 404 handler
 app.use(notFoundHandler);
@@ -55,6 +73,9 @@ const startServer = async () => {
       logger.info(`🚀 MalScope backend running on port ${environment.port}`);
       logger.info(`📊 Health: http://localhost:${environment.port}/api/health`);
       logger.info(`🌍 Environment: ${environment.nodeEnv}`);
+      logger.info(`🔐 Auth: http://localhost:${environment.port}/api/v1/auth`);
+      logger.info(`📁 Samples: http://localhost:${environment.port}/api/v1/samples`);
+      logger.info(`🔬 Analyses: http://localhost:${environment.port}/api/v1/analyses`);
     });
   } catch (error) {
     logger.error(`Failed to start server: ${error.message}`);
@@ -78,6 +99,7 @@ process.on('uncaughtException', (error) => {
 // Graceful shutdown
 const shutdown = async () => {
   logger.info('Shutting down gracefully...');
+  const mongoose = require('mongoose');
   await mongoose.disconnect();
   process.exit(0);
 };
