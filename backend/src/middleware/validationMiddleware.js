@@ -27,11 +27,12 @@ const schemas = {
       minLength: 8,
       message: 'Password must be at least 8 characters long',
     },
-    role: {
-      required: false,
-      type: 'string',
-      enum: ['analyst', 'viewer'],
-    },
+// In the register schema, change:
+role: {
+  required: false,
+  type: 'string',
+  enum: ['analyst', 'admin', 'viewer'],  // Add 'admin' here
+},
   },
 
   login: {
@@ -110,7 +111,24 @@ const schemas = {
       default: 'json',
     },
   },
+// Add to schemas object
+addTags: {
+  tags: {
+    required: true,
+    type: 'array',
+    items: 'string',
+    message: 'Tags must be an array of strings',
+  },
+},
 
+removeTags: {
+  tags: {
+    required: true,
+    type: 'array',
+    items: 'string',
+    message: 'Tags must be an array of strings',
+  },
+},
   // Search schemas
   search: {
     query: {

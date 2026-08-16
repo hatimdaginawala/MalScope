@@ -2,7 +2,7 @@
 """
 MalScope Analysis Engine Worker
 
-This is the entry point for the Python analysis engine.
+Entry point for the Python analysis engine.
 Called by Node.js as a child process with CLI arguments.
 """
 
@@ -11,6 +11,9 @@ import json
 import sys
 import os
 from datetime import datetime, timezone
+
+from static.pe_analyzer import PEAnalyzer
+from common.result_formatter import ResultFormatter
 
 
 def main():
@@ -40,7 +43,7 @@ def main():
     result = {
         'success': True,
         'mode': args.mode,
-        'timestamp': datetime.now(datetime.UTC).isoformat(),
+        'timestamp': datetime.now(timezone.UTC).isoformat(),
         'result': {},
         'warnings': [],
         'errors': []
@@ -48,7 +51,7 @@ def main():
 
     try:
         if args.mode == 'test':
-            # Simple test mode to verify Python is working
+            # Simple test mode
             result['result'] = {
                 'message': 'Python analysis engine is operational',
                 'python_version': sys.version,
@@ -61,13 +64,19 @@ def main():
             if not os.path.exists(args.sample):
                 raise FileNotFoundError(f'Sample not found: {args.sample}')
 
-            # Placeholder - full static analysis will be implemented in Phase 4
-            result['result'] = {
-                'status': 'placeholder',
-                'message': 'Static analysis will be implemented in Phase 4',
-                'sample_path': args.sample
-            }
-            result['warnings'].append('Static analysis not yet implemented')
+            # Initialize PE analyzer
+            analyzer = PEAnalyzer()
+            
+            # Perform static analysis
+            analysis_result = analyzer.analyze(args.sample)
+            
+            # Format results
+            formatted_result = ResultFormatter.to_dict(analysis_result)
+            
+            result['result'] = formatted_result
+            result['warnings'] = analysis_result.warnings
+            result['errors'] = analysis_result.errors
+            result['success'] = analysis_result.success
 
         elif args.mode == 'dynamic':
             if not args.telemetry:

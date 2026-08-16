@@ -15,17 +15,17 @@ class SampleController {
       }
 
       const userId = req.user ? req.user.id : null;
-      const { filename } = req.file;
-      const fileBuffer = req.file.buffer;
+      const { originalname, buffer } = req.file;
 
-      const result = await SampleService.uploadSample(fileBuffer, filename, userId);
+      const result = await SampleService.uploadSample(buffer, originalname, userId);
 
       if (result.duplicate) {
-        return res.status(409).json({
+        return res.status(200).json({
           success: true,
           message: 'Sample already exists in the system',
           data: {
             sample: result.sample,
+            analysis: result.analysis,
             duplicate: true,
           },
         });
@@ -56,11 +56,15 @@ class SampleController {
   static async getSamples(req, res, next) {
     try {
       const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 20;
+      const limit = Math.min(parseInt(req.query.limit) || 20, 100);
       const filters = {
         status: req.query.status,
         fileType: req.query.fileType,
+        peType: req.query.peType,
+        arch: req.query.arch,
         search: req.query.search,
+        startDate: req.query.startDate,
+        endDate: req.query.endDate,
       };
 
       const result = await SampleService.getSamples(page, limit, filters);
@@ -86,8 +90,10 @@ class SampleController {
 
       const sample = await SampleService.getSampleById(id);
 
-      // Get related analyses
-      const analyses = await AnalysisService.getAnalysesForSample(id);
+      // Get related analyses with pagination
+      const page = parseInt(req.query.analysisPage) || 1;
+      const limit = parseInt(req.query.analysisLimit) || 10;
+      const analyses = await AnalysisService.getAnalysesForSample(id, page, limit);
 
       res.status(200).json({
         success: true,
@@ -95,6 +101,7 @@ class SampleController {
           sample,
           analyses: analyses.analyses,
           analysisCount: analyses.pagination.total,
+          analysisPagination: analyses.pagination,
         },
       });
     } catch (error) {
@@ -175,28 +182,95 @@ class SampleController {
    */
   static async getStats(req, res, next) {
     try {
-      const MalwareSample = require('../models/MalwareSample');
-
-      const [total, byStatus, byType] = await Promise.all([
-        MalwareSample.countDocuments(),
-        MalwareSample.aggregate([
-          { $group: { _id: '$status', count: { $sum: 1 } } },
-        ]),
-        MalwareSample.aggregate([
-          { $group: { _id: '$fileType', count: { $sum: 1 } } },
-        ]),
-      ]);
+      const stats = await SampleService.getStats();
 
       res.status(200).json({
         success: true,
-        data: {
-          total,
-          byStatus: byStatus.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
-          byType: byType.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
-        },
+        data: stats,
       });
     } catch (error) {
       logger.error(`Failed to get sample stats: ${error.message}`, { error });
+      next(error);
+    }
+  }
+
+  /**
+   * Search samples
+   * GET /api/v1/samples/search
+   */
+  static async search(req, res, next) {
+    try {
+      const { q, page, limit } = req.query;
+
+      if (!q) {
+        throw new ApiError(400, 'Search query is required');
+      }
+
+      const result = await SampleService.searchSamples(
+        q,
+        parseInt(page) || 1,
+        Math.min(parseInt(limit) || 20, 100)
+      );
+
+      res.status(200).json({
+        success: true,
+        data: result.samples,
+        pagination: result.pagination,
+      });
+    } catch (error) {
+      logger.error(`Failed to search samples: ${error.message}`, { error });
+      next(error);
+    }
+  }
+
+  /**
+   * Add tags to sample
+   * POST /api/v1/samples/:id/tags
+   */
+  static async addTags(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { tags } = req.body;
+
+      if (!tags || (Array.isArray(tags) && tags.length === 0)) {
+        throw new ApiError(400, 'Tags are required');
+      }
+
+      const sample = await SampleService.addTags(id, tags);
+
+      res.status(200).json({
+        success: true,
+        message: 'Tags added successfully',
+        data: sample,
+      });
+    } catch (error) {
+      logger.error(`Failed to add tags: ${error.message}`, { error });
+      next(error);
+    }
+  }
+
+  /**
+   * Remove tags from sample
+   * DELETE /api/v1/samples/:id/tags
+   */
+  static async removeTags(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { tags } = req.body;
+
+      if (!tags || (Array.isArray(tags) && tags.length === 0)) {
+        throw new ApiError(400, 'Tags are required');
+      }
+
+      const sample = await SampleService.removeTags(id, tags);
+
+      res.status(200).json({
+        success: true,
+        message: 'Tags removed successfully',
+        data: sample,
+      });
+    } catch (error) {
+      logger.error(`Failed to remove tags: ${error.message}`, { error });
       next(error);
     }
   }

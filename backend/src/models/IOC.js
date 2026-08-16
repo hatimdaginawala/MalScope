@@ -97,10 +97,10 @@ const iocSchema = new mongoose.Schema(
 );
 
 // Compound indexes
-iocSchema.index({ type: 1, normalizedValue: 1 });
-iocSchema.index({ sample: 1, type: 1 });
-iocSchema.index({ confidence: -1, severity: 1 });
-iocSchema.index({ value: 'text' }, { weights: { value: 10 } });
+// iocSchema.index({ type: 1, normalizedValue: 1 });
+// iocSchema.index({ sample: 1, type: 1 });
+// iocSchema.index({ confidence: -1, severity: 1 });
+// iocSchema.index({ value: 'text' }, { weights: { value: 10 } });
 
 // Static methods
 iocSchema.statics.findByValue = function (type, value) {

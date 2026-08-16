@@ -122,10 +122,10 @@ const threatAssessmentSchema = new mongoose.Schema(
 );
 
 // Indexes
-threatAssessmentSchema.index({ sample: 1, createdAt: -1 });
-threatAssessmentSchema.index({ analysis: 1 });
-threatAssessmentSchema.index({ level: 1 });
-threatAssessmentSchema.index({ finalVerdict: 1 });
+// threatAssessmentSchema.index({ sample: 1, createdAt: -1 });
+// threatAssessmentSchema.index({ analysis: 1 });
+// threatAssessmentSchema.index({ level: 1 });
+// threatAssessmentSchema.index({ finalVerdict: 1 });
 
 // Static methods
 threatAssessmentSchema.statics.getLatestForSample = function (sampleId) {

@@ -142,11 +142,11 @@ const dynamicAnalysisSchema = new mongoose.Schema(
 );
 
 // Indexes
-dynamicAnalysisSchema.index({ sample: 1, createdAt: -1 });
-dynamicAnalysisSchema.index({ analysis: 1 });
-dynamicAnalysisSchema.index({ 'processes.pid': 1 });
-dynamicAnalysisSchema.index({ 'networkEvents.destinationIp': 1 });
-dynamicAnalysisSchema.index({ 'fileEvents.path': 1 });
+// dynamicAnalysisSchema.index({ sample: 1, createdAt: -1 });
+// dynamicAnalysisSchema.index({ analysis: 1 });
+// dynamicAnalysisSchema.index({ 'processes.pid': 1 });
+// dynamicAnalysisSchema.index({ 'networkEvents.destinationIp': 1 });
+// dynamicAnalysisSchema.index({ 'fileEvents.path': 1 });
 
 // Static method to get latest analysis for a sample
 dynamicAnalysisSchema.statics.getLatestForSample = function (sampleId) {

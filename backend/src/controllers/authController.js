@@ -7,6 +7,22 @@ const { ApiError } = require('../middleware/errorMiddleware');
 
 class AuthController {
   /**
+   * Generate JWT token (static method)
+   */
+  static _generateToken(user) {
+    const payload = {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+    };
+
+    return jwt.sign(payload, environment.jwtSecret, {
+      expiresIn: '7d',
+    });
+  }
+
+  /**
    * Register a new user
    * POST /api/v1/auth/register
    */
@@ -39,7 +55,7 @@ class AuthController {
       await user.save();
 
       // Generate JWT
-      const token = this._generateToken(user);
+      const token = AuthController._generateToken(user);
 
       logger.info(`User registered: ${username} (${user._id})`);
 
@@ -93,7 +109,7 @@ class AuthController {
       await user.save();
 
       // Generate JWT
-      const token = this._generateToken(user);
+      const token = AuthController._generateToken(user);
 
       logger.info(`User logged in: ${username} (${user._id})`);
 
@@ -234,9 +250,6 @@ class AuthController {
    */
   static async logout(req, res, next) {
     try {
-      // JWT is stateless, so we just invalidate on client side
-      // Optionally: add token to blacklist if implemented
-
       logger.info(`User logged out: ${req.user.username}`);
 
       res.status(200).json({
@@ -250,22 +263,6 @@ class AuthController {
   }
 
   /**
-   * Generate JWT token
-   */
-  static _generateToken(user) {
-    const payload = {
-      id: user._id,
-      username: user.username,
-      email: user.email,
-      role: user.role,
-    };
-
-    return jwt.sign(payload, environment.jwtSecret, {
-      expiresIn: '7d',
-    });
-  }
-
-  /**
    * Refresh token
    * POST /api/v1/auth/refresh
    */
@@ -276,7 +273,7 @@ class AuthController {
         throw new ApiError(404, 'User not found');
       }
 
-      const token = this._generateToken(user);
+      const token = AuthController._generateToken(user);
 
       res.status(200).json({
         success: true,

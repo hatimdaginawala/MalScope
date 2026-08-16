@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 
-// Analysis status enum
 const ANALYSIS_STATUS = {
   QUEUED: 'queued',
   PREPARING: 'preparing',
@@ -20,13 +19,11 @@ const analysisSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'MalwareSample',
       required: [true, 'Sample reference is required'],
-      index: true,
     },
     status: {
       type: String,
       enum: Object.values(ANALYSIS_STATUS),
       default: ANALYSIS_STATUS.QUEUED,
-      index: true,
     },
     stage: {
       type: String,
@@ -39,13 +36,13 @@ const analysisSchema = new mongoose.Schema(
     completedAt: {
       type: Date,
     },
-    error: {
+    // Changed from `error` to `errorInfo` to avoid reserved keyword
+    errorInfo: {
       message: String,
       stage: String,
       timestamp: Date,
       stack: String,
     },
-    // References to analysis components
     staticAnalysis: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'StaticAnalysis',
@@ -62,20 +59,18 @@ const analysisSchema = new mongoose.Schema(
       type: mongoose.Schema.Types.ObjectId,
       ref: 'ThreatAssessment',
     },
-    // Analysis environment
     environment: {
       nodeVersion: String,
       pythonVersion: String,
       vmName: String,
       vmSnapshot: String,
     },
-    // Analysis metadata
     analysisVersion: {
       type: String,
       default: '1.0.0',
     },
     duration: {
-      type: Number, // milliseconds
+      type: Number,
     },
     logs: [{
       timestamp: Date,
@@ -95,17 +90,15 @@ const analysisSchema = new mongoose.Schema(
   }
 );
 
-// Indexes
+// Indexes - only define once
 analysisSchema.index({ sample: 1, status: 1 });
 analysisSchema.index({ status: 1, createdAt: -1 });
 analysisSchema.index({ completed: 1, createdAt: -1 });
 
-// Static methods
 analysisSchema.statics.getStatusEnum = function () {
   return ANALYSIS_STATUS;
 };
 
-// Instance methods
 analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
   const validTransitions = {
     queued: ['preparing', 'failed'],
@@ -120,7 +113,6 @@ analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
     cleanup: [],
   };
 
-  // Allow cleanup from any state
   if (newStatus === 'cleanup') {
     this.status = newStatus;
     this.stage = newStatus;
@@ -134,7 +126,6 @@ analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
     return this.save();
   }
 
-  // Validate transition
   const allowed = validTransitions[this.status] || [];
   if (!allowed.includes(newStatus) && this.status !== newStatus) {
     throw new Error(
@@ -175,7 +166,7 @@ analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
 analysisSchema.methods.setError = function (errorMessage, errorStage, errorStack = null) {
   this.status = 'failed';
   this.stage = errorStage || this.stage;
-  this.error = {
+  this.errorInfo = {  // Changed from `error` to `errorInfo`
     message: errorMessage,
     stage: errorStage || this.stage,
     timestamp: new Date(),

@@ -125,8 +125,8 @@ const staticAnalysisSchema = new mongoose.Schema(
 );
 
 // Indexes
-staticAnalysisSchema.index({ sample: 1, createdAt: -1 });
-staticAnalysisSchema.index({ analysis: 1 });
+// staticAnalysisSchema.index({ sample: 1, createdAt: -1 });
+// staticAnalysisSchema.index({ analysis: 1 });
 
 // Static method to get latest analysis for a sample
 staticAnalysisSchema.statics.getLatestForSample = function (sampleId) {

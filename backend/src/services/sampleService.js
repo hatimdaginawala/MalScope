@@ -1,6 +1,5 @@
 const fs = require('fs');
 const path = require('path');
-const crypto = require('crypto');
 const MalwareSample = require('../models/MalwareSample');
 const { Analysis, ANALYSIS_STATUS } = require('../models/Analysis');
 const logger = require('../utils/logger');
@@ -9,73 +8,31 @@ const fileUtils = require('../utils/fileUtils');
 
 class SampleService {
   /**
-   * Calculate hashes for a file
+   * Calculate hashes for a file buffer
    */
-  static async calculateHashes(fileBuffer) {
-    const sha256 = crypto.createHash('sha256').update(fileBuffer).digest('hex');
-    const md5 = crypto.createHash('md5').update(fileBuffer).digest('hex');
-    const sha1 = crypto.createHash('sha1').update(fileBuffer).digest('hex');
-    return { sha256, md5, sha1 };
+  static async calculateHashes(buffer) {
+    return fileUtils.calculateHashes(buffer);
   }
 
   /**
-   * Detect file type
+   * Detect file type from buffer
    */
   static detectFileType(buffer) {
-    // Check for PE signature
-    if (buffer.length >= 2 && buffer[0] === 0x4D && buffer[1] === 0x5A) {
-      // MZ header
-      return 'pe';
-    }
-    // Check for ELF signature
-    if (buffer.length >= 4 && buffer[0] === 0x7F && buffer[1] === 0x45 && buffer[2] === 0x4C && buffer[3] === 0x46) {
-      return 'elf';
-    }
-    return 'unknown';
+    return fileUtils.detectFileType(buffer);
   }
 
   /**
-   * Detect PE subtype
+   * Detect PE subtype from buffer
    */
   static detectPESubtype(buffer) {
-    try {
-      // Read PE header at offset 0x3C
-      const peOffset = buffer.readUInt16LE(0x3C);
-      if (peOffset + 4 > buffer.length) return 'unknown';
-
-      // Check PE signature
-      if (buffer.readUInt32LE(peOffset) !== 0x00004550) return 'unknown';
-
-      // Read characteristics at offset peOffset + 0x16
-      const characteristics = buffer.readUInt16LE(peOffset + 0x16);
-      
-      if (characteristics & 0x2000) return 'dll'; // IMAGE_FILE_DLL
-      if (characteristics & 0x0002) return 'exe'; // IMAGE_FILE_EXECUTABLE_IMAGE
-      if (characteristics & 0x0100) return 'sys'; // IMAGE_FILE_SYSTEM
-      
-      return 'exe';
-    } catch (error) {
-      return 'unknown';
-    }
+    return fileUtils.detectPESubtype(buffer);
   }
 
   /**
-   * Determine architecture from PE header
+   * Detect architecture from buffer
    */
   static detectArchitecture(buffer) {
-    try {
-      const peOffset = buffer.readUInt16LE(0x3C);
-      const machine = buffer.readUInt16LE(peOffset + 4);
-      
-      if (machine === 0x8664) return 'x64'; // IMAGE_FILE_MACHINE_AMD64
-      if (machine === 0x14C) return 'x86'; // IMAGE_FILE_MACHINE_I386
-      if (machine === 0x200) return 'x86'; // IMAGE_FILE_MACHINE_IA64
-      if (machine === 0xAA64) return 'x64'; // IMAGE_FILE_MACHINE_ARM64
-      
-      return 'unknown';
-    } catch (error) {
-      return 'unknown';
-    }
+    return fileUtils.detectArchitecture(buffer);
   }
 
   /**
@@ -83,10 +40,15 @@ class SampleService {
    */
   static async uploadSample(fileBuffer, filename, userId = null) {
     try {
-      // Validate file size (e.g., 100MB limit)
-      const MAX_SIZE = 100 * 1024 * 1024; // 100MB
+      // Validate file size (100MB limit)
+      const MAX_SIZE = 100 * 1024 * 1024;
       if (fileBuffer.length > MAX_SIZE) {
         throw new ApiError(413, `File exceeds maximum size of ${MAX_SIZE / 1024 / 1024}MB`);
+      }
+
+      // Validate file is not empty
+      if (fileBuffer.length === 0) {
+        throw new ApiError(400, 'File is empty');
       }
 
       // Calculate hashes
@@ -95,9 +57,16 @@ class SampleService {
       // Check for duplicate
       const existing = await MalwareSample.findOne({ sha256: hashes.sha256 });
       if (existing) {
+        // Check if there's already an analysis
+        const existingAnalysis = await Analysis.findOne({ 
+          sample: existing._id,
+          status: { $nin: ['completed', 'failed'] }
+        });
+
         return {
           duplicate: true,
           sample: existing,
+          analysis: existingAnalysis,
           message: 'Sample already exists in the system',
         };
       }
@@ -111,10 +80,11 @@ class SampleService {
       // Detect PE subtype and architecture
       const peType = this.detectPESubtype(fileBuffer);
       const arch = this.detectArchitecture(fileBuffer);
+      const mimeType = fileUtils.getMimeType(filename);
 
       // Generate storage path
       const storageDir = path.join(process.cwd(), 'storage', 'samples', 'pending');
-      await fs.promises.mkdir(storageDir, { recursive: true });
+      fileUtils.ensureDirectory(storageDir);
 
       const safeFilename = `${hashes.sha256}.exe`;
       const storagePath = path.join(storageDir, safeFilename);
@@ -133,10 +103,15 @@ class SampleService {
         fileType,
         peType,
         arch,
-        mimeType: 'application/x-msdownload',
+        mimeType,
         storagePath,
         submittedBy: userId,
         status: 'pending',
+        tags: [],
+        metadata: {
+          uploadedAt: new Date().toISOString(),
+          originalName: filename,
+        },
       });
 
       await sample.save();
@@ -149,6 +124,7 @@ class SampleService {
         environment: {
           nodeVersion: process.version,
         },
+        startedAt: new Date(),
       });
 
       await analysis.save();
@@ -168,7 +144,7 @@ class SampleService {
   }
 
   /**
-   * Get all samples with pagination
+   * Get all samples with pagination and filters
    */
   static async getSamples(page = 1, limit = 20, filters = {}) {
     try {
@@ -176,14 +152,43 @@ class SampleService {
       
       // Build query
       const query = {};
-      if (filters.status) query.status = filters.status;
-      if (filters.fileType) query.fileType = filters.fileType;
+      
+      // Status filter
+      if (filters.status) {
+        query.status = filters.status;
+      }
+      
+      // File type filter
+      if (filters.fileType) {
+        query.fileType = filters.fileType;
+      }
+      
+      // PE type filter
+      if (filters.peType) {
+        query.peType = filters.peType;
+      }
+      
+      // Architecture filter
+      if (filters.arch) {
+        query.arch = filters.arch;
+      }
+
+      // Search filter (filename or hash)
       if (filters.search) {
         query.$or = [
           { filename: { $regex: filters.search, $options: 'i' } },
           { sha256: { $regex: filters.search } },
           { md5: { $regex: filters.search } },
+          { sha1: { $regex: filters.search } },
         ];
+      }
+
+      // Date range filter
+      if (filters.startDate) {
+        query.createdAt = { $gte: new Date(filters.startDate) };
+      }
+      if (filters.endDate) {
+        query.createdAt = { ...query.createdAt, $lte: new Date(filters.endDate) };
       }
 
       const [samples, total] = await Promise.all([
@@ -191,7 +196,7 @@ class SampleService {
           .sort({ createdAt: -1 })
           .skip(skip)
           .limit(limit)
-          .populate('submittedBy', 'username')
+          .populate('submittedBy', 'username email')
           .lean(),
         MalwareSample.countDocuments(query),
       ]);
@@ -212,19 +217,31 @@ class SampleService {
   }
 
   /**
-   * Get sample by ID
+   * Get sample by ID with related data
    */
   static async getSampleById(sampleId) {
     try {
       const sample = await MalwareSample.findById(sampleId)
-        .populate('submittedBy', 'username')
+        .populate('submittedBy', 'username email')
         .lean();
 
       if (!sample) {
         throw new ApiError(404, 'Sample not found');
       }
 
-      return sample;
+      // Get latest analysis
+      const latestAnalysis = await Analysis.findOne({ sample: sampleId })
+        .sort({ createdAt: -1 })
+        .populate('staticAnalysis')
+        .populate('dynamicAnalysis')
+        .populate('virusTotalReport')
+        .populate('threatAssessment')
+        .lean();
+
+      return {
+        ...sample,
+        latestAnalysis,
+      };
     } catch (error) {
       logger.error(`Failed to get sample: ${error.message}`, { error });
       throw error;
@@ -245,7 +262,7 @@ class SampleService {
   }
 
   /**
-   * Delete sample
+   * Delete sample and all related data
    */
   static async deleteSample(sampleId) {
     try {
@@ -255,20 +272,43 @@ class SampleService {
       }
 
       // Delete file from storage
-      try {
-        await fs.promises.unlink(sample.storagePath);
-      } catch (err) {
-        logger.warn(`Failed to delete sample file: ${sample.storagePath}`, { error: err.message });
-      }
+      await fileUtils.deleteFile(sample.storagePath);
 
       // Delete related analyses
       await Analysis.deleteMany({ sample: sample._id });
+
+      // Delete related static analyses
+      const StaticAnalysis = require('../models/StaticAnalysis');
+      await StaticAnalysis.deleteMany({ sample: sample._id });
+
+      // Delete related dynamic analyses
+      const DynamicAnalysis = require('../models/DynamicAnalysis');
+      await DynamicAnalysis.deleteMany({ sample: sample._id });
+
+      // Delete related IOCs
+      const IOC = require('../models/IOC');
+      await IOC.deleteMany({ sample: sample._id });
+
+      // Delete related behaviors
+      const Behavior = require('../models/Behavior');
+      await Behavior.deleteMany({ sample: sample._id });
+
+      // Delete related threat assessments
+      const ThreatAssessment = require('../models/ThreatAssessment');
+      await ThreatAssessment.deleteMany({ sample: sample._id });
+
+      // Delete virus total reports
+      const VirusTotalReport = require('../models/VirusTotalReport');
+      await VirusTotalReport.deleteMany({ sample: sample._id });
 
       // Delete the sample
       await sample.deleteOne();
 
       logger.info(`Sample deleted: ${sample.sha256}`);
-      return { success: true, message: 'Sample deleted successfully' };
+      return { 
+        success: true, 
+        message: 'Sample and all related data deleted successfully' 
+      };
     } catch (error) {
       logger.error(`Failed to delete sample: ${error.message}`, { error });
       throw error;
@@ -285,12 +325,157 @@ class SampleService {
         throw new ApiError(404, 'Sample not found');
       }
 
+      const validStatuses = ['pending', 'processing', 'completed', 'failed'];
+      if (!validStatuses.includes(status)) {
+        throw new ApiError(400, `Invalid status: ${status}. Must be one of: ${validStatuses.join(', ')}`);
+      }
+
       sample.status = status;
+      await sample.save();
+
+      logger.info(`Sample status updated: ${sample.sha256} -> ${status}`);
+      return sample;
+    } catch (error) {
+      logger.error(`Failed to update sample status: ${error.message}`, { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get sample statistics
+   */
+  static async getStats() {
+    try {
+      const [total, byStatus, byType, byPetype, byArch] = await Promise.all([
+        MalwareSample.countDocuments(),
+        MalwareSample.aggregate([
+          { $group: { _id: '$status', count: { $sum: 1 } } },
+        ]),
+        MalwareSample.aggregate([
+          { $group: { _id: '$fileType', count: { $sum: 1 } } },
+        ]),
+        MalwareSample.aggregate([
+          { $group: { _id: '$peType', count: { $sum: 1 } } },
+        ]),
+        MalwareSample.aggregate([
+          { $group: { _id: '$arch', count: { $sum: 1 } } },
+        ]),
+      ]);
+
+      return {
+        total,
+        byStatus: byStatus.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
+        byType: byType.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
+        byPetype: byPetype.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
+        byArch: byArch.reduce((acc, item) => ({ ...acc, [item._id]: item.count }), {}),
+      };
+    } catch (error) {
+      logger.error(`Failed to get sample stats: ${error.message}`, { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Search samples
+   */
+  static async searchSamples(query, page = 1, limit = 20) {
+    try {
+      const skip = (page - 1) * limit;
+
+      const searchQuery = {
+        $or: [
+          { filename: { $regex: query, $options: 'i' } },
+          { sha256: { $regex: query } },
+          { md5: { $regex: query } },
+          { sha1: { $regex: query } },
+          { tags: { $regex: query, $options: 'i' } },
+        ],
+      };
+
+      const [samples, total] = await Promise.all([
+        MalwareSample.find(searchQuery)
+          .sort({ createdAt: -1 })
+          .skip(skip)
+          .limit(limit)
+          .populate('submittedBy', 'username')
+          .lean(),
+        MalwareSample.countDocuments(searchQuery),
+      ]);
+
+      return {
+        samples,
+        pagination: {
+          page,
+          limit,
+          total,
+          pages: Math.ceil(total / limit),
+        },
+      };
+    } catch (error) {
+      logger.error(`Failed to search samples: ${error.message}`, { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Add tags to a sample
+   */
+  static async addTags(sampleId, tags) {
+    try {
+      const sample = await MalwareSample.findById(sampleId);
+      if (!sample) {
+        throw new ApiError(404, 'Sample not found');
+      }
+
+      const newTags = Array.isArray(tags) ? tags : [tags];
+      const uniqueTags = [...new Set([...sample.tags, ...newTags])];
+      sample.tags = uniqueTags;
       await sample.save();
 
       return sample;
     } catch (error) {
-      logger.error(`Failed to update sample status: ${error.message}`, { error });
+      logger.error(`Failed to add tags: ${error.message}`, { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Remove tags from a sample
+   */
+  static async removeTags(sampleId, tags) {
+    try {
+      const sample = await MalwareSample.findById(sampleId);
+      if (!sample) {
+        throw new ApiError(404, 'Sample not found');
+      }
+
+      const tagsToRemove = Array.isArray(tags) ? tags : [tags];
+      sample.tags = sample.tags.filter(t => !tagsToRemove.includes(t));
+      await sample.save();
+
+      return sample;
+    } catch (error) {
+      logger.error(`Failed to remove tags: ${error.message}`, { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Add note to a sample
+   */
+  static async addNote(sampleId, note) {
+    try {
+      const sample = await MalwareSample.findById(sampleId);
+      if (!sample) {
+        throw new ApiError(404, 'Sample not found');
+      }
+
+      sample.notes = sample.notes ? `${sample.notes}\n${note}` : note;
+      await sample.save();
+
+      return sample;
+    } catch (error) {
+      logger.error(`Failed to add note: ${error.message}`, { error });
       throw error;
     }
   }

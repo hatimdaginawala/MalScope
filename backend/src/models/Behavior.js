@@ -118,10 +118,10 @@ const behaviorSchema = new mongoose.Schema(
 );
 
 // Indexes
-behaviorSchema.index({ sample: 1, createdAt: -1 });
-behaviorSchema.index({ analysis: 1 });
-behaviorSchema.index({ type: 1, severity: 1 });
-behaviorSchema.index({ 'mitre.techniqueId': 1 });
+// behaviorSchema.index({ sample: 1, createdAt: -1 });
+// behaviorSchema.index({ analysis: 1 });
+// behaviorSchema.index({ type: 1, severity: 1 });
+// behaviorSchema.index({ 'mitre.techniqueId': 1 });
 
 // Static methods
 behaviorSchema.statics.getForSample = function (sampleId) {

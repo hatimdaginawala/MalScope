@@ -137,10 +137,10 @@ const virusTotalReportSchema = new mongoose.Schema(
 );
 
 // Indexes
-virusTotalReportSchema.index({ sample: 1, createdAt: -1 });
-virusTotalReportSchema.index({ analysis: 1 });
-virusTotalReportSchema.index({ 'stats.malicious': 1 });
-virusTotalReportSchema.index({ 'threatIntelligence.families': 1 });
+// virusTotalReportSchema.index({ sample: 1, createdAt: -1 });
+// virusTotalReportSchema.index({ analysis: 1 });
+// virusTotalReportSchema.index({ 'stats.malicious': 1 });
+// virusTotalReportSchema.index({ 'threatIntelligence.families': 1 });
 
 // Static method to get latest report
 virusTotalReportSchema.statics.getLatestForSample = function (sampleId) {

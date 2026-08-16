@@ -47,8 +47,8 @@ const userSchema = new mongoose.Schema(
 );
 
 // Indexes
-userSchema.index({ username: 1 });
-userSchema.index({ email: 1 });
+// userSchema.index({ username: 1 });
+// userSchema.index({ email: 1 });
 
 // Virtual for full name or display name
 userSchema.virtual('displayName').get(function () {

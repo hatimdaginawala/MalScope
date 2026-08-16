@@ -9,51 +9,39 @@ class PythonAnalysisService {
     this.pythonPath = this._findPython();
     this.workerPath = path.join(process.cwd(), '..', 'analysis-engine', 'worker.py');
     
-    // Fallback if running from backend directory
     if (!fs.existsSync(this.workerPath)) {
       this.workerPath = path.join(process.cwd(), 'analysis-engine', 'worker.py');
     }
     
-    // Default timeout: 5 minutes for static, 30 minutes for dynamic
     this.defaultTimeouts = {
-      static: 5 * 60 * 1000,
-      dynamic: 30 * 60 * 1000,
+      static: 5 * 60 * 1000,  // 5 minutes
+      dynamic: 30 * 60 * 1000, // 30 minutes
       test: 10 * 1000,
     };
   }
 
-  /**
-   * Find Python executable
-   */
   _findPython() {
-    // Try common Python executable names
     const pythonCandidates = ['python3', 'python', 'py'];
     
     for (const candidate of pythonCandidates) {
       try {
-        // Simple check - will throw if not found
         const result = require('child_process').spawnSync(candidate, ['--version']);
         if (result.status === 0) {
           return candidate;
         }
       } catch (error) {
-        // Continue to next candidate
+        // Continue
       }
     }
     
-    // Default to 'python' and let it fail if not found
     return 'python';
   }
 
-  /**
-   * Execute Python worker
-   */
   async executeWorker(args, timeout = null) {
     return new Promise((resolve, reject) => {
       const startTime = Date.now();
       const timeoutMs = timeout || this.defaultTimeouts.static;
 
-      // Build command arguments
       const cmdArgs = [];
       for (const [key, value] of Object.entries(args)) {
         cmdArgs.push(`--${key}`);
@@ -77,7 +65,6 @@ class PythonAnalysisService {
         stderr += data.toString();
       });
 
-      // Set timeout
       const timeoutId = setTimeout(() => {
         child.kill('SIGTERM');
         reject(new Error(`Python worker timed out after ${timeoutMs}ms`));
@@ -100,7 +87,6 @@ class PythonAnalysisService {
         }
 
         try {
-          // Parse JSON output
           const result = JSON.parse(stdout);
           resolve({
             success: true,
@@ -121,9 +107,6 @@ class PythonAnalysisService {
     });
   }
 
-  /**
-   * Run static analysis on a sample
-   */
   async runStaticAnalysis(samplePath, options = {}) {
     try {
       if (!fs.existsSync(samplePath)) {
@@ -145,9 +128,6 @@ class PythonAnalysisService {
     }
   }
 
-  /**
-   * Run dynamic analysis on telemetry data
-   */
   async runDynamicAnalysis(telemetryPath, options = {}) {
     try {
       if (!fs.existsSync(telemetryPath)) {
@@ -169,9 +149,6 @@ class PythonAnalysisService {
     }
   }
 
-  /**
-   * Test the Python worker
-   */
   async testWorker() {
     try {
       logger.info('Testing Python worker...');
@@ -188,9 +165,6 @@ class PythonAnalysisService {
     }
   }
 
-  /**
-   * Check if Python worker is available
-   */
   async isAvailable() {
     try {
       await this.testWorker();
