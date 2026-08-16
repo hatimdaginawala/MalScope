@@ -1,3 +1,9 @@
+// ===== CLEAR MONGOOSE MODEL CACHE - MUST BE FIRST =====
+const mongoose = require('mongoose');
+mongoose.models = {};
+mongoose.modelSchemas = {};
+// ======================================================
+
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -27,8 +33,8 @@ app.use(cors());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per window
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: 'Too many requests from this IP',
 });
 app.use('/api', limiter);
@@ -66,7 +72,6 @@ app.use(errorHandler);
 // Start server
 const startServer = async () => {
   try {
-    // Connect to MongoDB
     await connectDB();
 
     app.listen(environment.port, () => {
@@ -86,20 +91,17 @@ const startServer = async () => {
 // Handle unhandled rejections
 process.on('unhandledRejection', (reason, promise) => {
   logger.error('Unhandled Rejection at:', { promise, reason });
-  // Don't exit - keep the process running for now
 });
 
 // Handle uncaught exceptions
 process.on('uncaughtException', (error) => {
   logger.error('Uncaught Exception:', { error: error.message, stack: error.stack });
-  // Exit on uncaught exception
   process.exit(1);
 });
 
 // Graceful shutdown
 const shutdown = async () => {
   logger.info('Shutting down gracefully...');
-  const mongoose = require('mongoose');
   await mongoose.disconnect();
   process.exit(0);
 };
@@ -107,7 +109,6 @@ const shutdown = async () => {
 process.on('SIGTERM', shutdown);
 process.on('SIGINT', shutdown);
 
-// Start the server (only if not in test mode)
 if (require.main === module) {
   startServer();
 }

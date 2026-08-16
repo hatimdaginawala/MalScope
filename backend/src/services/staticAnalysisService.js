@@ -1,14 +1,13 @@
 const StaticAnalysis = require('../models/StaticAnalysis');
 const MalwareSample = require('../models/MalwareSample');
+const { Analysis } = require('../models/Analysis');  // FIX: Use destructuring
 const AnalysisService = require('./analysisService');
 const PythonAnalysisService = require('./pythonAnalysisService');
+const IOCService = require('./iocService');
 const logger = require('../utils/logger');
 const { ApiError } = require('../middleware/errorMiddleware');
 
 class StaticAnalysisService {
-  /**
-   * Perform static analysis on a sample
-   */
   static async analyze(analysisId) {
     try {
       // Get analysis
@@ -17,22 +16,18 @@ class StaticAnalysisService {
         throw new ApiError(404, 'Analysis not found');
       }
 
-      // Check if we can proceed
       const canProceed = await AnalysisService.canProceed(analysisId);
       if (!canProceed) {
         throw new ApiError(400, `Analysis cannot proceed in current state: ${analysis.status}`);
       }
 
-      // Update status
       await AnalysisService.updateStatus(analysisId, 'static_analysis', 'Starting static analysis');
 
-      // Get sample
       const sample = await MalwareSample.findById(analysis.sample);
       if (!sample) {
         throw new ApiError(404, 'Sample not found');
       }
 
-      // Run Python static analysis
       let pythonResult;
       try {
         pythonResult = await PythonAnalysisService.runStaticAnalysis(sample.storagePath);
@@ -41,39 +36,47 @@ class StaticAnalysisService {
         throw error;
       }
 
-      // Check if Python analysis succeeded
       if (!pythonResult.success) {
         const errorMsg = pythonResult.errors ? pythonResult.errors.join(', ') : 'Unknown Python error';
         await AnalysisService.setError(analysisId, errorMsg, 'static_analysis');
         throw new ApiError(500, `Static analysis failed: ${errorMsg}`);
       }
 
+      const result = pythonResult.result || {};
+
       // Create StaticAnalysis record
       const staticAnalysis = new StaticAnalysis({
         sample: sample._id,
         analysis: analysisId,
-        fileInfo: pythonResult.result.file || {},
-        sections: pythonResult.result.sections || [],
-        imports: pythonResult.result.imports || [],
-        exports: pythonResult.result.exports || [],
-        strings: pythonResult.result.strings || {},
-        entropy: pythonResult.result.entropy || {},
-        resources: pythonResult.result.resources || [],
-        yaraMatches: pythonResult.result.yaraMatches || [],
-        findings: pythonResult.result.findings || [],
+        fileInfo: result.file || {},
+        sections: result.sections || [],
+        imports: result.imports || [],
+        exports: result.exports || [],
+        strings: result.strings || { ascii: [], unicode: [], suspicious: [] },
+        entropy: result.entropy || { overall: 0, sections: [], highEntropySections: [] },
+        resources: result.resources || [],
+        yaraMatches: result.yaraMatches || [],
+        findings: result.findings || [],
         processedAt: new Date(),
         processingDuration: pythonResult.duration || 0,
         warnings: pythonResult.warnings || [],
         errors: pythonResult.errors || [],
         version: '1.0.0',
-        rawResult: pythonResult.result,
+        rawResult: result,
       });
 
       await staticAnalysis.save();
 
-      // Update analysis with staticAnalysis reference
-      analysis.staticAnalysis = staticAnalysis._id;
-      await analysis.save();
+      // Extract IOCs
+      await IOCService.extractIOCs(analysisId, sample._id, {
+        static: result,
+      });
+
+      // FIX: Use Analysis.updateOne instead of findByIdAndUpdate
+      await Analysis.updateOne(
+        { _id: analysisId },
+        { staticAnalysis: staticAnalysis._id }
+      );
 
       await AnalysisService.addLog(analysisId, 'Static analysis completed successfully', 'info');
 
@@ -89,9 +92,6 @@ class StaticAnalysisService {
     }
   }
 
-  /**
-   * Get static analysis results
-   */
   static async getResults(analysisId) {
     try {
       const analysis = await AnalysisService.getAnalysisById(analysisId);
@@ -118,9 +118,6 @@ class StaticAnalysisService {
     }
   }
 
-  /**
-   * Get static analysis summary
-   */
   static async getSummary(analysisId) {
     try {
       const results = await this.getResults(analysisId);
@@ -145,9 +142,6 @@ class StaticAnalysisService {
     }
   }
 
-  /**
-   * Check if sample has been statically analyzed
-   */
   static async hasResults(sampleId) {
     try {
       const count = await StaticAnalysis.countDocuments({ sample: sampleId });

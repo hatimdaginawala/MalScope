@@ -36,7 +36,6 @@ const analysisSchema = new mongoose.Schema(
     completedAt: {
       type: Date,
     },
-    // Changed from `error` to `errorInfo` to avoid reserved keyword
     errorInfo: {
       message: String,
       stage: String,
@@ -90,7 +89,7 @@ const analysisSchema = new mongoose.Schema(
   }
 );
 
-// Indexes - only define once
+// Indexes
 analysisSchema.index({ sample: 1, status: 1 });
 analysisSchema.index({ status: 1, createdAt: -1 });
 analysisSchema.index({ completed: 1, createdAt: -1 });
@@ -100,19 +99,21 @@ analysisSchema.statics.getStatusEnum = function () {
 };
 
 analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
+  // Define valid transitions
   const validTransitions = {
-    queued: ['preparing', 'failed'],
-    preparing: ['static_analysis', 'failed'],
-    static_analysis: ['vt_enrichment', 'dynamic_analysis', 'failed'],
-    vt_enrichment: ['dynamic_analysis', 'completed', 'failed'],
-    dynamic_analysis: ['collecting', 'failed'],
-    collecting: ['correlating', 'failed'],
-    correlating: ['completed', 'failed'],
-    completed: [],
-    failed: ['cleanup'],
-    cleanup: [],
+    'queued': ['preparing', 'failed'],
+    'preparing': ['static_analysis', 'failed'],
+    'static_analysis': ['vt_enrichment', 'dynamic_analysis', 'failed'],
+    'vt_enrichment': ['dynamic_analysis', 'completed', 'failed'],
+    'dynamic_analysis': ['collecting', 'failed'],
+    'collecting': ['correlating', 'failed'],
+    'correlating': ['completed', 'failed'],
+    'completed': [],
+    'failed': ['cleanup'],
+    'cleanup': [],
   };
 
+  // Allow cleanup from any state
   if (newStatus === 'cleanup') {
     this.status = newStatus;
     this.stage = newStatus;
@@ -123,9 +124,10 @@ analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
         message: logMessage,
       });
     }
-    return this.save();
+    return this;
   }
 
+  // Validate transition
   const allowed = validTransitions[this.status] || [];
   if (!allowed.includes(newStatus) && this.status !== newStatus) {
     throw new Error(
@@ -133,9 +135,11 @@ analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
     );
   }
 
+  // Update status
   this.status = newStatus;
   this.stage = newStatus;
 
+  // Set timestamps
   if (newStatus === 'completed') {
     this.completedAt = new Date();
     this.completed = true;
@@ -148,10 +152,12 @@ analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
     this.completed = false;
   }
 
+  // Set startedAt when first starting
   if (newStatus === 'queued' && !this.startedAt) {
     this.startedAt = new Date();
   }
 
+  // Add log
   if (logMessage) {
     this.logs.push({
       timestamp: new Date(),
@@ -160,15 +166,15 @@ analysisSchema.methods.updateStatus = function (newStatus, logMessage = null) {
     });
   }
 
-  return this.save();
+  return this;
 };
 
 analysisSchema.methods.setError = function (errorMessage, errorStage, errorStack = null) {
   this.status = 'failed';
-  this.stage = errorStage || this.stage;
-  this.errorInfo = {  // Changed from `error` to `errorInfo`
+  this.stage = errorStage || this.stage || 'failed';
+  this.errorInfo = {
     message: errorMessage,
-    stage: errorStage || this.stage,
+    stage: this.stage,
     timestamp: new Date(),
     stack: errorStack,
   };
@@ -178,7 +184,7 @@ analysisSchema.methods.setError = function (errorMessage, errorStage, errorStack
     level: 'error',
     message: `Failed at ${this.stage}: ${errorMessage}`,
   });
-  return this.save();
+  return this;
 };
 
 analysisSchema.methods.addLog = function (message, level = 'info') {
@@ -187,7 +193,7 @@ analysisSchema.methods.addLog = function (message, level = 'info') {
     level,
     message,
   });
-  return this.save();
+  return this;
 };
 
 module.exports = {

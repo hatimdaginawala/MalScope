@@ -1,3 +1,4 @@
+const fs = require('fs')
 const SampleService = require('../services/sampleService');
 const AnalysisService = require('../services/analysisService');
 const logger = require('../utils/logger');
@@ -8,16 +9,39 @@ class SampleController {
    * Upload a new sample
    * POST /api/v1/samples
    */
-  static async upload(req, res, next) {
+static async upload(req, res, next) {
     try {
+      // Check if file exists
       if (!req.file) {
+        logger.error('No file in request');
         throw new ApiError(400, 'No file uploaded');
       }
 
       const userId = req.user ? req.user.id : null;
-      const { originalname, buffer } = req.file;
+      const { originalname, buffer, size, path: filePath } = req.file;
 
-      const result = await SampleService.uploadSample(buffer, originalname, userId);
+      // If buffer is empty, try reading from disk
+      let fileBuffer = buffer;
+      if (!fileBuffer || fileBuffer.length === 0) {
+        if (fs.existsSync(filePath)) {
+          fileBuffer = await fs.promises.readFile(filePath);
+        } else {
+          throw new ApiError(400, 'File buffer is empty');
+        }
+      }
+
+      logger.info(`Uploading file: ${originalname} (${fileBuffer.length} bytes)`);
+
+      const result = await SampleService.uploadSample(fileBuffer, originalname, userId);
+
+      // Clean up temp file
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          await fs.promises.unlink(filePath);
+        } catch (err) {
+          logger.warn(`Failed to clean up temp file: ${filePath}`);
+        }
+      }
 
       if (result.duplicate) {
         return res.status(200).json({
@@ -45,6 +69,16 @@ class SampleController {
       });
     } catch (error) {
       logger.error(`Upload failed: ${error.message}`, { error });
+      
+      // Clean up temp file if it exists
+      if (req.file && req.file.path && fs.existsSync(req.file.path)) {
+        try {
+          await fs.promises.unlink(req.file.path);
+        } catch (err) {
+          // Ignore cleanup errors
+        }
+      }
+      
       next(error);
     }
   }

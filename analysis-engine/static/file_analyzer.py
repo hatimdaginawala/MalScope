@@ -4,10 +4,9 @@ File analyzer for PE file identification and metadata
 
 import os
 import pefile
-import magic
 from datetime import datetime
 from typing import Optional, Dict
-from ..common.models import PEInfo
+from common.models import PEInfo
 
 
 class FileAnalyzer:
@@ -29,16 +28,9 @@ class FileAnalyzer:
         
         file_size = os.path.getsize(file_path)
         
-        # Detect file type using magic
-        try:
-            mime_type = magic.from_file(file_path, mime=True)
-            file_type = magic.from_file(file_path)
-        except:
-            mime_type = 'application/octet-stream'
-            file_type = 'Unknown'
-        
-        # Parse PE file
-        pe = None
+        # Detect file type using pefile
+        mime_type = 'application/octet-stream'
+        file_type = 'Unknown'
         pe_type = 'unknown'
         arch = 'unknown'
         compile_time = None
@@ -47,18 +39,28 @@ class FileAnalyzer:
         image_base = None
         subsystem = None
         
+        # Try to parse as PE
+        pe = None
         try:
             pe = pefile.PE(file_path)
             
             # Determine PE type
             if pe.is_dll():
                 pe_type = 'dll'
+                file_type = 'Windows DLL'
+                mime_type = 'application/x-msdownload'
             elif pe.is_exe():
                 pe_type = 'exe'
+                file_type = 'Windows Executable'
+                mime_type = 'application/x-msdownload'
             elif pe.is_driver():
                 pe_type = 'sys'
+                file_type = 'Windows Driver'
+                mime_type = 'application/x-msdownload'
             else:
                 pe_type = 'unknown'
+                file_type = 'Windows Portable Executable'
+                mime_type = 'application/x-msdownload'
             
             # Determine architecture
             if pe.FILE_HEADER.Machine == pefile.MACHINE_TYPE['IMAGE_FILE_MACHINE_AMD64']:
@@ -71,7 +73,7 @@ class FileAnalyzer:
                 arch = 'unknown'
             
             # Extract compile time
-            if hasattr(pe.FILE_HEADER, 'TimeDateStamp'):
+            if hasattr(pe.FILE_HEADER, 'TimeDateStamp') and pe.FILE_HEADER.TimeDateStamp:
                 compile_time = datetime.fromtimestamp(
                     pe.FILE_HEADER.TimeDateStamp
                 ).isoformat()
@@ -106,11 +108,13 @@ class FileAnalyzer:
                 subsystem = subsystem_map.get(pe.OPTIONAL_HEADER.Subsystem, 'Unknown')
             
         except pefile.PEFormatError:
-            # Not a valid PE file
+            # Not a valid PE file - check if it might be something else
+            file_type = 'Not a PE file'
             pe_type = 'invalid'
         except Exception as e:
             # Other errors
-            pass
+            file_type = f'Error parsing: {str(e)}'
+            pe_type = 'error'
         finally:
             if pe:
                 pe.close()

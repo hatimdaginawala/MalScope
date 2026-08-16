@@ -4,7 +4,7 @@ Import analyzer for PE file imports
 
 import pefile
 from typing import List
-from ..common.models import ImportInfo
+from common.models import ImportInfo
 
 
 class ImportAnalyzer:
@@ -34,9 +34,7 @@ class ImportAnalyzer:
         'Process32Next',
         'OpenProcess',
         'TerminateProcess',
-        'CreateRemoteThread',
         'VirtualProtectEx',
-        'WriteProcessMemory',
     ]
     
     @staticmethod

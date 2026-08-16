@@ -5,7 +5,7 @@ Section analyzer for PE file sections
 import pefile
 import math
 from typing import List
-from ..common.models import SectionInfo
+from common.models import SectionInfo
 
 
 class SectionAnalyzer:

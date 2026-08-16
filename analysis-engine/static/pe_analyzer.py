@@ -3,22 +3,30 @@ Complete PE analyzer orchestrating all analysis components
 """
 
 import os
+import hashlib
 import pefile
+import re
 from typing import Dict, Any, List
-from datetime import datetime
+from datetime import datetime, timezone
 
-from ..common.models import (
+# Use absolute imports
+from common.models import (
     StaticAnalysisResult, PEInfo, SectionInfo, ImportInfo,
     ExportInfo, StringInfo, EntropyInfo, ResourceInfo,
     YARAMatch, Finding, IOC
 )
-from .file_analyzer import FileAnalyzer
-from .hash_analyzer import HashAnalyzer
-from .section_analyzer import SectionAnalyzer
-from .import_analyzer import ImportAnalyzer
-from .entropy_analyzer import EntropyAnalyzer
-from .string_analyzer import StringAnalyzer
-from .yara_analyzer import YARAAnalyzer
+from static.file_analyzer import FileAnalyzer
+from static.hash_analyzer import HashAnalyzer
+from static.section_analyzer import SectionAnalyzer
+from static.import_analyzer import ImportAnalyzer
+from static.entropy_analyzer import EntropyAnalyzer
+from static.string_analyzer import StringAnalyzer
+from static.yara_analyzer import YARAAnalyzer
+
+
+def get_utc_iso():
+    """Get current UTC time in ISO format"""
+    return datetime.now(timezone.utc).isoformat()
 
 
 class PEAnalyzer:
@@ -39,7 +47,7 @@ class PEAnalyzer:
         """
         result = StaticAnalysisResult(
             success=False,
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=get_utc_iso(),
         )
         
         try:
@@ -195,7 +203,7 @@ class PEAnalyzer:
             findings.append(Finding(
                 type='suspicious_strings',
                 severity='medium',
-                description=f"Contains suspicious strings",
+                description="Contains suspicious strings",
                 evidence=f"Found {len(strings.suspicious)} suspicious strings",
                 confidence=0.6,
             ))
@@ -248,7 +256,6 @@ class PEAnalyzer:
         # Extract IPs from strings
         if strings:
             all_strings = strings.ascii + strings.unicode
-            import re
             ip_pattern = r'\b(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\b'
             
             for s in all_strings:

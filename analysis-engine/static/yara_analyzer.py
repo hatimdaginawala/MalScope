@@ -3,10 +3,9 @@ YARA analyzer for scanning files with YARA rules
 """
 
 import os
-import yara
 import glob
-from typing import List, Dict, Any
-from ..common.models import YARAMatch
+from typing import List
+from common.models import YARAMatch
 
 
 class YARAAnalyzer:
@@ -15,20 +14,30 @@ class YARAAnalyzer:
     def __init__(self, rules_dir: str = None):
         """
         Initialize YARA analyzer
-        
-        Args:
-            rules_dir: Directory containing YARA rule files
         """
         self.rules_dir = rules_dir or os.path.join(
             os.path.dirname(os.path.dirname(__file__)),
             '..', 'rules', 'yara'
         )
+        self.has_yara = False
         self.compiled_rules = None
-        self._load_rules()
+        
+        # Try to import yara
+        try:
+            import yara
+            self.yara = yara
+            self.has_yara = True
+            self._load_rules()
+        except ImportError:
+            print("Warning: YARA not available - YARA scanning disabled")
     
     def _load_rules(self):
         """Load YARA rules from directory"""
+        if not self.has_yara:
+            return
+        
         if not os.path.exists(self.rules_dir):
+            self.compiled_rules = None
             return
         
         # Find all .yar and .yara files
@@ -37,17 +46,17 @@ class YARAAnalyzer:
             rule_files.extend(glob.glob(os.path.join(self.rules_dir, ext)))
         
         if not rule_files:
+            self.compiled_rules = None
             return
         
         try:
             # Compile rules
-            self.compiled_rules = yara.compile(filepaths={
+            self.compiled_rules = self.yara.compile(filepaths={
                 os.path.basename(f): f for f in rule_files
             })
-        except yara.SyntaxError as e:
-            print(f"YARA syntax error: {e}")
         except Exception as e:
             print(f"YARA compilation error: {e}")
+            self.compiled_rules = None
     
     def scan(self, file_path: str) -> List[YARAMatch]:
         """
@@ -59,7 +68,7 @@ class YARAAnalyzer:
         Returns:
             List of YARAMatch objects
         """
-        if not self.compiled_rules:
+        if not self.has_yara or not self.compiled_rules:
             return []
         
         if not os.path.exists(file_path):
@@ -97,15 +106,8 @@ class YARAAnalyzer:
     def scan_data(self, data: bytes, filename: str = None) -> List[YARAMatch]:
         """
         Scan data with YARA rules
-        
-        Args:
-            data: Bytes to scan
-            filename: Optional filename for context
-            
-        Returns:
-            List of YARAMatch objects
         """
-        if not self.compiled_rules:
+        if not self.has_yara or not self.compiled_rules:
             return []
         
         try:
@@ -113,7 +115,6 @@ class YARAAnalyzer:
             
             result = []
             for match in matches:
-                # Extract matched strings
                 matched_strings = []
                 for string_name, string_data in match.strings.items():
                     matched_strings.append({

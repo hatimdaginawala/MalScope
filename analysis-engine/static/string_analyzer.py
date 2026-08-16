@@ -5,7 +5,7 @@ String analyzer for extracting strings from PE files
 import pefile
 import re
 from typing import List
-from ..common.models import StringInfo
+from common.models import StringInfo
 
 
 class StringAnalyzer:

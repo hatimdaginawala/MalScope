@@ -5,7 +5,7 @@ Entropy analyzer for PE file sections
 import pefile
 import math
 from typing import List, Dict
-from ..common.models import EntropyInfo
+from common.models import EntropyInfo
 
 
 class EntropyAnalyzer:

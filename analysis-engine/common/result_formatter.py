@@ -3,9 +3,8 @@ Result formatter for converting analysis results to JSON
 """
 
 import json
-from datetime import datetime
 from typing import Any, Dict
-from .models import StaticAnalysisResult
+from common.models import StaticAnalysisResult
 
 
 class ResultFormatter:
@@ -32,42 +31,45 @@ class ResultFormatter:
                 'subsystem': result.file_info.subsystem,
             }
         
-        # Convert sections
+        # Convert sections - always return list
         sections = []
-        for section in result.sections:
-            sections.append({
-                'name': section.name,
-                'virtualAddress': section.virtual_address,
-                'virtualSize': section.virtual_size,
-                'rawSize': section.raw_size,
-                'characteristics': section.characteristics,
-                'entropy': section.entropy,
-            })
+        if result.sections:
+            for section in result.sections:
+                sections.append({
+                    'name': section.name,
+                    'virtualAddress': section.virtual_address,
+                    'virtualSize': section.virtual_size,
+                    'rawSize': section.raw_size,
+                    'characteristics': section.characteristics,
+                    'entropy': section.entropy,
+                })
         
-        # Convert imports
+        # Convert imports - always return list
         imports = []
-        for imp in result.imports:
-            imports.append({
-                'dll': imp.dll,
-                'functions': imp.functions,
-            })
+        if result.imports:
+            for imp in result.imports:
+                imports.append({
+                    'dll': imp.dll,
+                    'functions': imp.functions,
+                })
         
-        # Convert exports
+        # Convert exports - always return list
         exports = []
-        for exp in result.exports:
-            exports.append({
-                'name': exp.name,
-                'ordinal': exp.ordinal,
-                'address': exp.address,
-            })
+        if result.exports:
+            for exp in result.exports:
+                exports.append({
+                    'name': exp.name,
+                    'ordinal': exp.ordinal,
+                    'address': exp.address,
+                })
         
         # Convert strings
         strings = None
         if result.strings:
             strings = {
-                'ascii': result.strings.ascii,
-                'unicode': result.strings.unicode,
-                'suspicious': result.strings.suspicious,
+                'ascii': result.strings.ascii or [],
+                'unicode': result.strings.unicode or [],
+                'suspicious': result.strings.suspicious or [],
             }
         
         # Convert entropy
@@ -75,52 +77,62 @@ class ResultFormatter:
         if result.entropy:
             entropy = {
                 'overall': result.entropy.overall,
-                'sections': result.entropy.sections,
-                'highEntropySections': result.entropy.high_entropy_sections,
+                'sections': result.entropy.sections or [],
+                'highEntropySections': result.entropy.high_entropy_sections or [],
             }
         
-        # Convert resources
+        # Convert resources - ALWAYS return a list
         resources = []
-        for resource in result.resources:
-            resources.append({
-                'type': resource.type,
-                'id': resource.id,
-                'language': resource.language,
-                'size': resource.size,
-                'sha256': resource.sha256,
-            })
+        if result.resources:
+            for resource in result.resources:
+                if isinstance(resource, dict):
+                    resources.append(resource)
+                else:
+                    resources.append({
+                        'type': getattr(resource, 'type', ''),
+                        'id': getattr(resource, 'id', 0),
+                        'language': getattr(resource, 'language', 0),
+                        'size': getattr(resource, 'size', 0),
+                        'sha256': getattr(resource, 'sha256', ''),
+                    })
         
-        # Convert YARA matches
+        # Convert YARA matches - always return list
         yara_matches = []
-        for match in result.yara_matches:
-            yara_matches.append({
-                'ruleName': match.rule_name,
-                'namespace': match.namespace,
-                'tags': match.tags,
-                'meta': match.meta,
-                'strings': match.strings,
-            })
+        if result.yara_matches:
+            for match in result.yara_matches:
+                yara_matches.append({
+                    'ruleName': match.rule_name,
+                    'namespace': match.namespace,
+                    'tags': match.tags or [],
+                    'meta': match.meta or {},
+                    'strings': match.strings or [],
+                })
         
-        # Convert findings
+        # Convert findings - ALWAYS return a list
         findings = []
-        for finding in result.findings:
-            findings.append({
-                'type': finding.type,
-                'severity': finding.severity,
-                'description': finding.description,
-                'evidence': finding.evidence,
-                'confidence': finding.confidence,
-            })
+        if result.findings:
+            for finding in result.findings:
+                if isinstance(finding, dict):
+                    findings.append(finding)
+                else:
+                    findings.append({
+                        'type': getattr(finding, 'type', ''),
+                        'severity': getattr(finding, 'severity', 'low'),
+                        'description': getattr(finding, 'description', ''),
+                        'evidence': getattr(finding, 'evidence', ''),
+                        'confidence': getattr(finding, 'confidence', 0.5),
+                    })
         
-        # Convert IOCs
+        # Convert IOCs - always return list
         iocs = []
-        for ioc in result.iocs:
-            iocs.append({
-                'type': ioc.type,
-                'value': ioc.value,
-                'confidence': ioc.confidence,
-                'context': ioc.context,
-            })
+        if result.iocs:
+            for ioc in result.iocs:
+                iocs.append({
+                    'type': ioc.type,
+                    'value': ioc.value,
+                    'confidence': ioc.confidence,
+                    'context': ioc.context or {},
+                })
         
         return {
             'success': result.success,
@@ -135,8 +147,8 @@ class ResultFormatter:
             'yaraMatches': yara_matches,
             'findings': findings,
             'iocs': iocs,
-            'warnings': result.warnings,
-            'errors': result.errors,
+            'warnings': result.warnings or [],
+            'errors': result.errors or [],
         }
     
     @staticmethod

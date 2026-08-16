@@ -69,62 +69,72 @@ class AnalysisService {
   /**
    * Update analysis status
    */
-  static async updateStatus(analysisId, newStatus, logMessage = null) {
-    try {
-      const analysis = await Analysis.findById(analysisId);
-      if (!analysis) {
-        throw new ApiError(404, 'Analysis not found');
-      }
+// In analysisService.js, ensure the updateStatus method is working
 
-      await analysis.updateStatus(newStatus, logMessage);
-      await analysis.save();
-
-      // If analysis is completed, update sample status
-      if (newStatus === 'completed') {
-        await MalwareSample.findByIdAndUpdate(analysis.sample, {
-          status: 'completed',
-        });
-      }
-
-      // If analysis failed, update sample status
-      if (newStatus === 'failed') {
-        await MalwareSample.findByIdAndUpdate(analysis.sample, {
-          status: 'failed',
-        });
-      }
-
-      return analysis;
-    } catch (error) {
-      logger.error(`Failed to update analysis status: ${error.message}`, { error });
-      throw error;
+static async updateStatus(analysisId, newStatus, logMessage = null) {
+  try {
+    const analysis = await Analysis.findById(analysisId);
+    if (!analysis) {
+      throw new ApiError(404, 'Analysis not found');
     }
+
+    await analysis.updateStatus(newStatus, logMessage);
+    await analysis.save();
+
+    // If analysis is completed, update sample status
+    if (newStatus === 'completed') {
+      await MalwareSample.findByIdAndUpdate(analysis.sample, {
+        status: 'completed',
+      });
+    }
+
+    // If analysis failed, update sample status
+    if (newStatus === 'failed') {
+      await MalwareSample.findByIdAndUpdate(analysis.sample, {
+        status: 'failed',
+      });
+    }
+
+    logger.info(`Analysis ${analysisId} status updated to: ${newStatus}`);
+    return analysis;
+  } catch (error) {
+    logger.error(`Failed to update analysis status: ${error.message}`, { error });
+    throw error;
   }
+}
 
   /**
    * Set analysis error
    */
-  static async setError(analysisId, errorMessage, errorStage, errorStack = null) {
-    try {
-      const analysis = await Analysis.findById(analysisId);
-      if (!analysis) {
-        throw new ApiError(404, 'Analysis not found');
-      }
 
-      await analysis.setError(errorMessage, errorStage, errorStack);
-      await analysis.save();
-
-      // Update sample status
-      await MalwareSample.findByIdAndUpdate(analysis.sample, {
-        status: 'failed',
-      });
-
-      return analysis;
-    } catch (error) {
-      logger.error(`Failed to set analysis error: ${error.message}`, { error });
-      throw error;
+static async setError(analysisId, errorMessage, errorStage, errorStack = null) {
+  try {
+    const analysis = await Analysis.findById(analysisId);
+    if (!analysis) {
+      throw new ApiError(404, 'Analysis not found');
     }
-  }
 
+    // Use a valid stage value from ANALYSIS_STATUS
+    const validStages = ['queued', 'preparing', 'static_analysis', 'vt_enrichment', 
+                         'dynamic_analysis', 'collecting', 'correlating', 'completed', 
+                         'failed', 'cleanup'];
+    
+    const stage = validStages.includes(errorStage) ? errorStage : 'failed';
+
+    await analysis.setError(errorMessage, stage, errorStack);
+    await analysis.save();
+
+    // Update sample status
+    await MalwareSample.findByIdAndUpdate(analysis.sample, {
+      status: 'failed',
+    });
+
+    return analysis;
+  } catch (error) {
+    logger.error(`Failed to set analysis error: ${error.message}`, { error });
+    throw error;
+  }
+}
   /**
    * Add log entry to analysis
    */

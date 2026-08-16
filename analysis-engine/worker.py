@@ -12,8 +12,16 @@ import sys
 import os
 from datetime import datetime, timezone
 
+# Add the current directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from static.pe_analyzer import PEAnalyzer
 from common.result_formatter import ResultFormatter
+
+
+def get_utc_iso():
+    """Get current UTC time in ISO format"""
+    return datetime.now(timezone.utc).isoformat()
 
 
 def main():
@@ -43,7 +51,7 @@ def main():
     result = {
         'success': True,
         'mode': args.mode,
-        'timestamp': datetime.now(timezone.UTC).isoformat(),
+        'timestamp': get_utc_iso(),
         'result': {},
         'warnings': [],
         'errors': []
@@ -70,8 +78,29 @@ def main():
             # Perform static analysis
             analysis_result = analyzer.analyze(args.sample)
             
-            # Format results
+            # Format results - this returns a dict with proper arrays
             formatted_result = ResultFormatter.to_dict(analysis_result)
+            
+            # IMPORTANT: Ensure resources and findings are arrays, not strings
+            if 'resources' in formatted_result:
+                # If resources is a string, try to parse it
+                if isinstance(formatted_result['resources'], str):
+                    try:
+                        formatted_result['resources'] = json.loads(formatted_result['resources'])
+                    except:
+                        formatted_result['resources'] = []
+                # If it's already a list, keep it
+                elif not isinstance(formatted_result['resources'], list):
+                    formatted_result['resources'] = []
+            
+            if 'findings' in formatted_result:
+                if isinstance(formatted_result['findings'], str):
+                    try:
+                        formatted_result['findings'] = json.loads(formatted_result['findings'])
+                    except:
+                        formatted_result['findings'] = []
+                elif not isinstance(formatted_result['findings'], list):
+                    formatted_result['findings'] = []
             
             result['result'] = formatted_result
             result['warnings'] = analysis_result.warnings
@@ -96,8 +125,8 @@ def main():
         result['success'] = False
         result['errors'].append(str(e))
 
-    # Output results
-    output_json = json.dumps(result, indent=2)
+    # Output results - ensure proper JSON serialization
+    output_json = json.dumps(result, indent=2, default=str)
 
     if args.output:
         with open(args.output, 'w') as f:
