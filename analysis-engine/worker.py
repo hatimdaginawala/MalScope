@@ -10,7 +10,7 @@ import argparse
 import json
 import sys
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 
 
 def main():
@@ -40,7 +40,7 @@ def main():
     result = {
         'success': True,
         'mode': args.mode,
-        'timestamp': datetime.utcnow().isoformat(),
+        'timestamp': datetime.now(datetime.UTC).isoformat(),
         'result': {},
         'warnings': [],
         'errors': []
