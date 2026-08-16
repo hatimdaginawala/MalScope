@@ -80,6 +80,8 @@ def main():
             
             # Format results - this returns a dict with proper arrays
             formatted_result = ResultFormatter.to_dict(analysis_result)
+            ioc_count = len(formatted_result.get('iocs', []))
+            print(f"📊 IOCs in result: {ioc_count}", file=sys.stderr)
             
             # IMPORTANT: Ensure resources and findings are arrays, not strings
             if 'resources' in formatted_result:

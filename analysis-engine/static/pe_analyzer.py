@@ -4,6 +4,7 @@ Complete PE analyzer orchestrating all analysis components
 
 import os
 import hashlib
+import sys
 import pefile
 import re
 from typing import Dict, Any, List
@@ -117,6 +118,7 @@ class PEAnalyzer:
                     file_info, result.strings, result.findings,
                     hashes
                 )
+                print(f"Extracted {len(result.iocs)} IOCs from static analysis", file=sys.stderr)
                 
                 result.success = True
                 

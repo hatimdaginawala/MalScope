@@ -1,16 +1,15 @@
 const StaticAnalysis = require('../models/StaticAnalysis');
 const MalwareSample = require('../models/MalwareSample');
-const { Analysis } = require('../models/Analysis');  // FIX: Use destructuring
+const { Analysis } = require('../models/Analysis');
 const AnalysisService = require('./analysisService');
 const PythonAnalysisService = require('./pythonAnalysisService');
-const IOCService = require('./iocService');
+const IOC = require('../models/IOC');
 const logger = require('../utils/logger');
 const { ApiError } = require('../middleware/errorMiddleware');
 
 class StaticAnalysisService {
   static async analyze(analysisId) {
     try {
-      // Get analysis
       const analysis = await AnalysisService.getAnalysisById(analysisId);
       if (!analysis) {
         throw new ApiError(404, 'Analysis not found');
@@ -67,12 +66,62 @@ class StaticAnalysisService {
 
       await staticAnalysis.save();
 
-      // Extract IOCs
-      await IOCService.extractIOCs(analysisId, sample._id, {
-        static: result,
-      });
+      // ===== Extract IOCs from Python result =====
+      const pythonIOCs = result.iocs || [];
+      logger.info(`Found ${pythonIOCs.length} IOCs from Python analysis`);
+      
+      let savedCount = 0;
+      for (const iocData of pythonIOCs) {
+        try {
+          const type = iocData.type || 'other';
+          const value = iocData.value || '';
+          
+          if (!value) {
+            logger.warn(`Skipping IOC with empty value`);
+            continue;
+          }
+          
+          const normalizedValue = value.toLowerCase().trim();
+          
+          // Check if IOC already exists for this sample
+          const existing = await IOC.findOne({
+            sample: sample._id,
+            type: type,
+            normalizedValue: normalizedValue,
+          });
+          
+          if (!existing) {
+            const newIOC = new IOC({
+              type: type,
+              value: value,
+              normalizedValue: normalizedValue,
+              source: 'static_analysis',
+              sample: sample._id,
+              analysis: analysisId,  // <-- IMPORTANT: Set analysis ID
+              confidence: iocData.confidence || 0.5,
+              severity: 'medium',
+              context: iocData.context || {},
+              tags: [],
+              firstSeen: new Date(),
+              lastSeen: new Date(),
+            });
+            await newIOC.save();
+            savedCount++;
+            logger.debug(`Saved IOC: ${type}:${value}`);
+          } else {
+            existing.lastSeen = new Date();
+            existing.confidence = Math.max(existing.confidence, iocData.confidence || 0.5);
+            await existing.save();
+            savedCount++;
+          }
+        } catch (iocError) {
+          logger.warn(`Failed to save IOC: ${iocError.message}`);
+        }
+      }
+      
+      logger.info(`Saved ${savedCount} IOCs for sample ${sample._id}`);
 
-      // FIX: Use Analysis.updateOne instead of findByIdAndUpdate
+      // Update analysis with staticAnalysis reference
       await Analysis.updateOne(
         { _id: analysisId },
         { staticAnalysis: staticAnalysis._id }
@@ -83,6 +132,7 @@ class StaticAnalysisService {
       return {
         staticAnalysis,
         pythonResult,
+        iocs: pythonIOCs,
         warnings: pythonResult.warnings || [],
         errors: pythonResult.errors || [],
       };

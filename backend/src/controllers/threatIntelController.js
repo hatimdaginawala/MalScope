@@ -39,24 +39,41 @@ class ThreatIntelController {
    * Get IOCs for a sample
    * GET /api/v1/threat-intel/samples/:sampleId/iocs
    */
-  static async getIOCsForSample(req, res, next) {
-    try {
-      const { sampleId } = req.params;
-      const page = parseInt(req.query.page) || 1;
-      const limit = parseInt(req.query.limit) || 50;
+// In the getIOCsForSample method, make sure the response includes the fields
+static async getIOCsForSample(req, res, next) {
+  try {
+    const { sampleId } = req.params;
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 50;
 
-      const result = await IOCService.getIOCsForSample(sampleId, page, limit);
+    const result = await IOCService.getIOCsForSample(sampleId, page, limit);
 
-      res.status(200).json({
-        success: true,
-        data: result.iocs,
+    // Map the response to include type and value
+    const mappedIocs = result.iocs.map(ioc => ({
+      id: ioc._id,
+      type: ioc.type || ioc.iocType,
+      value: ioc.value || ioc.iocValue,
+      normalizedValue: ioc.normalizedValue,
+      confidence: ioc.confidence,
+      severity: ioc.severity,
+      source: ioc.source,
+      tags: ioc.tags,
+      firstSeen: ioc.firstSeen,
+      lastSeen: ioc.lastSeen,
+    }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        iocs: mappedIocs,
         pagination: result.pagination,
-      });
-    } catch (error) {
-      logger.error(`Failed to get IOCs for sample: ${error.message}`, { error });
-      next(error);
-    }
+      },
+    });
+  } catch (error) {
+    logger.error(`Failed to get IOCs for sample: ${error.message}`, { error });
+    next(error);
   }
+}
 
   /**
    * Get IOC by ID

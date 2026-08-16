@@ -415,74 +415,103 @@ class IOCService {
   /**
    * Get IOCs for a sample
    */
-  static async getIOCsForSample(sampleId, page = 1, limit = 50) {
-    try {
-      const skip = (page - 1) * limit;
+static async getIOCsForSample(sampleId, page = 1, limit = 50) {
+  try {
+    const skip = (page - 1) * limit;
 
-      const [iocs, total] = await Promise.all([
-        IOC.find({ sample: sampleId })
-          .sort({ severity: -1, confidence: -1, createdAt: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        IOC.countDocuments({ sample: sampleId }),
-      ]);
+    const [iocs, total] = await Promise.all([
+      IOC.find({ sample: sampleId })
+        .sort({ severity: -1, confidence: -1, createdAt: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      IOC.countDocuments({ sample: sampleId }),
+    ]);
 
-      return {
-        iocs,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit),
-        },
-      };
-    } catch (error) {
-      logger.error(`Failed to get IOCs: ${error.message}`, { error });
-      throw error;
-    }
+    // Map the response
+    const mappedIocs = iocs.map(ioc => ({
+      id: ioc._id,
+      type: ioc.type || ioc.iocType,
+      value: ioc.value || ioc.iocValue,
+      normalizedValue: ioc.normalizedValue,
+      confidence: ioc.confidence,
+      severity: ioc.severity,
+      source: ioc.source,
+      tags: ioc.tags || [],
+      firstSeen: ioc.firstSeen,
+      lastSeen: ioc.lastSeen,
+      malwareFamily: ioc.malwareFamily,
+      isActive: ioc.isActive,
+    }));
+
+    return {
+      iocs: mappedIocs,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
+    logger.error(`Failed to get IOCs: ${error.message}`, { error });
+    throw error;
   }
+}
 
   /**
    * Search IOCs by value
    */
-  static async searchIOCs(query, page = 1, limit = 50) {
-    try {
-      const skip = (page - 1) * limit;
+static async searchIOCs(query, page = 1, limit = 50) {
+  try {
+    const skip = (page - 1) * limit;
 
-      // Search by value or normalized value
-      const searchRegex = new RegExp(query, 'i');
-      const filter = {
-        $or: [
-          { value: searchRegex },
-          { normalizedValue: searchRegex },
-        ],
-      };
+    const searchRegex = new RegExp(query, 'i');
+    const filter = {
+      $or: [
+        { value: searchRegex },
+        { normalizedValue: searchRegex },
+      ],
+    };
 
-      const [iocs, total] = await Promise.all([
-        IOC.find(filter)
-          .populate('sample', 'filename sha256 status')
-          .sort({ severity: -1, confidence: -1 })
-          .skip(skip)
-          .limit(limit)
-          .lean(),
-        IOC.countDocuments(filter),
-      ]);
+    const [iocs, total] = await Promise.all([
+      IOC.find(filter)
+        .populate('sample', 'filename sha256 status')
+        .sort({ severity: -1, confidence: -1 })
+        .skip(skip)
+        .limit(limit)
+        .lean(),
+      IOC.countDocuments(filter),
+    ]);
 
-      return {
-        iocs,
-        pagination: {
-          page,
-          limit,
-          total,
-          pages: Math.ceil(total / limit),
-        },
-      };
-    } catch (error) {
-      logger.error(`Failed to search IOCs: ${error.message}`, { error });
-      throw error;
-    }
+    const mappedIocs = iocs.map(ioc => ({
+      id: ioc._id,
+      type: ioc.type,
+      value: ioc.value,
+      normalizedValue: ioc.normalizedValue,
+      confidence: ioc.confidence,
+      severity: ioc.severity,
+      source: ioc.source,
+      tags: ioc.tags || [],
+      sample: ioc.sample,
+      firstSeen: ioc.firstSeen,
+      lastSeen: ioc.lastSeen,
+    }));
+
+    return {
+      iocs: mappedIocs,
+      pagination: {
+        page,
+        limit,
+        total,
+        pages: Math.ceil(total / limit),
+      },
+    };
+  } catch (error) {
+    logger.error(`Failed to search IOCs: ${error.message}`, { error });
+    throw error;
   }
+}
 
   /**
    * Get IOC statistics
