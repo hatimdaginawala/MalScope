@@ -1,0 +1,6 @@
+# Core analysis libraries (minimal for Phase 1)
+# Additional libraries will be added in Phase 4
+
+# Phase 4 dependencies (pre-installed for convenience)
+pefile==2023.2.7
+yara-python==4.5.0
