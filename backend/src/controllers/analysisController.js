@@ -65,55 +65,54 @@ class AnalysisController {
  */
 static async _processAnalysis(analysisId, options) {
   try {
-    const { runDynamic = true, runVirusTotal = true } = options;
+    const { runVirusTotal = true } = options;
 
     logger.info(`Starting background analysis: ${analysisId}`);
 
-    // Step 0: Move to preparing state
-    logger.info(`[${analysisId}] Preparing analysis...`);
+    // Step 1: Preparing
     await AnalysisService.updateStatus(analysisId, 'preparing', 'Preparing analysis');
 
-    // Step 1: Static Analysis
+    // Step 2: Static Analysis
     logger.info(`[${analysisId}] Running static analysis...`);
     await AnalysisService.updateStatus(analysisId, 'static_analysis', 'Starting static analysis');
     await StaticAnalysisService.analyze(analysisId);
     logger.info(`[${analysisId}] Static analysis completed`);
 
-    // Step 2: VirusTotal Enrichment (always go through this state)
-    logger.info(`[${analysisId}] Processing VirusTotal enrichment...`);
-    await AnalysisService.updateStatus(analysisId, 'vt_enrichment', 'VirusTotal enrichment');
-    
+    // Step 3: VirusTotal Enrichment (only if not already completed)
     if (runVirusTotal && VirusTotalService.isEnabled()) {
+      // Check if analysis is still in a state where we can do VT enrichment
       const analysis = await AnalysisService.getAnalysisById(analysisId);
-      if (analysis && analysis.sample) {
-        const sample = await SampleService.getSampleById(analysis.sample);
-        if (sample) {
-          await VirusTotalService.enrichAnalysis(analysisId, sample._id, sample.sha256);
+      if (analysis && analysis.status !== 'completed' && analysis.status !== 'failed') {
+        logger.info(`[${analysisId}] Running VirusTotal enrichment...`);
+        await AnalysisService.updateStatus(analysisId, 'vt_enrichment', 'Starting VirusTotal enrichment');
+        if (analysis.sample) {
+          const sample = await SampleService.getSampleById(analysis.sample);
+          if (sample) {
+            await VirusTotalService.enrichAnalysis(analysisId, sample._id, sample.sha256);
+          }
         }
+        logger.info(`[${analysisId}] VirusTotal enrichment completed`);
+      } else {
+        logger.info(`[${analysisId}] VirusTotal enrichment skipped - analysis already ${analysis?.status}`);
       }
     }
-    logger.info(`[${analysisId}] VirusTotal enrichment processed`);
 
-    // Step 3: Dynamic Analysis (if enabled)
-    if (runDynamic) {
-      logger.info(`[${analysisId}] Running dynamic analysis...`);
-      await AnalysisService.updateStatus(analysisId, 'dynamic_analysis', 'Starting dynamic analysis');
-      await DynamicAnalysisService.analyze(analysisId);
-      logger.info(`[${analysisId}] Dynamic analysis completed`);
+    // Step 4: Complete (only if not already completed)
+    const finalAnalysis = await AnalysisService.getAnalysisById(analysisId);
+    if (finalAnalysis && finalAnalysis.status !== 'completed' && finalAnalysis.status !== 'failed') {
+      await AnalysisService.updateStatus(analysisId, 'completed', 'Analysis completed successfully');
+      logger.info(`[${analysisId}] Analysis completed successfully!`);
     } else {
-      // If dynamic is disabled, we still need to go through dynamic_analysis state
-      // to reach completed
-      logger.info(`[${analysisId}] Dynamic analysis skipped, moving to completed`);
+      logger.info(`[${analysisId}] Analysis already ${finalAnalysis?.status}`);
     }
-
-    // Step 4: Complete - now valid because we went through vt_enrichment
-    await AnalysisService.updateStatus(analysisId, 'completed', 'Analysis completed successfully');
-    logger.info(`[${analysisId}] Analysis completed successfully!`);
 
   } catch (error) {
     logger.error(`[${analysisId}] Analysis processing failed: ${error.message}`, { error });
     try {
-      await AnalysisService.setError(analysisId, error.message, 'analysis');
+      const analysis = await AnalysisService.getAnalysisById(analysisId);
+      if (analysis && analysis.status !== 'failed') {
+        await AnalysisService.setError(analysisId, error.message, 'analysis');
+      }
     } catch (setError) {
       logger.error(`[${analysisId}] Failed to set error: ${setError.message}`);
     }

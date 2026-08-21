@@ -25,9 +25,32 @@ router.get(
   StaticAnalysisController.getSummary
 );
 
+// ===== API Intelligence Routes =====
+/**
+ * @route   GET /api/v1/analyses/:analysisId/static/api-intelligence
+ * @desc    Get API intelligence results
+ * @access  Private
+ */
+router.get(
+  '/:analysisId/static/api-intelligence',
+  authenticate,
+  StaticAnalysisController.getAPIIntelligence
+);
+
+/**
+ * @route   GET /api/v1/analyses/:analysisId/static/high-risk-apis
+ * @desc    Get high-risk APIs
+ * @access  Private
+ */
+router.get(
+  '/:analysisId/static/high-risk-apis',
+  authenticate,
+  StaticAnalysisController.getHighRiskApis
+);
+
 /**
  * @route   GET /api/v1/analyses/:analysisId/static/yara
- * @desc    Get YARA matches from static analysis
+ * @desc    Get YARA matches
  * @access  Private
  */
 router.get(

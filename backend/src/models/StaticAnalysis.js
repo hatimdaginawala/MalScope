@@ -1,24 +1,161 @@
 const mongoose = require('mongoose');
 
-const schema = new mongoose.Schema({
-  sample: { type: mongoose.Schema.Types.ObjectId, ref: 'MalwareSample', required: true },
-  analysis: { type: mongoose.Schema.Types.ObjectId, ref: 'Analysis', required: true },
-  fileInfo: mongoose.Schema.Types.Mixed,
-  sections: [mongoose.Schema.Types.Mixed],
-  imports: [mongoose.Schema.Types.Mixed],
-  exports: [mongoose.Schema.Types.Mixed],
-  strings: mongoose.Schema.Types.Mixed,
-  entropy: mongoose.Schema.Types.Mixed,
-  resources: [mongoose.Schema.Types.Mixed],
-  yaraMatches: [mongoose.Schema.Types.Mixed],
-  findings: [mongoose.Schema.Types.Mixed],
-  processedAt: { type: Date, default: Date.now },
-  processingDuration: Number,
-  warnings: [String],
-  errors: [String],
-  version: { type: String, default: '1.0.0' },
-  rawResult: mongoose.Schema.Types.Mixed,
-}, { timestamps: true });
+const staticAnalysisSchema = new mongoose.Schema(
+  {
+    sample: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'MalwareSample',
+      required: [true, 'Sample reference is required'],
+    },
+    analysis: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Analysis',
+      required: [true, 'Analysis reference is required'],
+    },
+    
+    // ===== File Information =====
+    fileInfo: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+    
+    // ===== Header Analysis =====
+    dosHeader: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    coffHeader: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    optionalHeader: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    dataDirectories: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    
+    // ===== Sections =====
+    sections: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    
+    // ===== Imports/Exports =====
+    imports: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    exports: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    
+    // ===== Strings =====
+    strings: {
+      type: mongoose.Schema.Types.Mixed,
+      default: { ascii: [], unicode: [], suspicious: [] },
+    },
+    
+    // ===== Entropy =====
+    entropy: {
+      type: mongoose.Schema.Types.Mixed,
+      default: { overall: 0, sections: [], highEntropySections: [] },
+    },
+    
+    // ===== Resources =====
+    resources: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    
+    // ===== TLS =====
+    tls: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    
+    // ===== Debug Information =====
+    debugInfo: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    
+    // ===== Rich Header =====
+    richHeader: {
+      type: mongoose.Schema.Types.Mixed,
+      default: null,
+    },
+    
+    // ===== Digital Signature =====
+    signature: {
+      type: mongoose.Schema.Types.Mixed,
+      default: { signed: false },
+    },
+    
+    // ===== API Intelligence =====
+    apiIntelligence: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {
+        total_apis: 0,
+        total_categories: 0,
+        categories: {},
+        severity_summary: { low: 0, medium: 0, high: 0, critical: 0 },
+        top_categories: [],
+        capabilities: [],
+      },
+    },
+    highRiskApis: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    
+    // ===== YARA =====
+    yaraMatches: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    
+    // ===== Findings =====
+    findings: {
+      type: [mongoose.Schema.Types.Mixed],
+      default: [],
+    },
+    
+    processedAt: {
+      type: Date,
+      default: Date.now,
+    },
+    processingDuration: Number,
+    warnings: {
+      type: [String],
+      default: [],
+    },
+    errors: {
+      type: [String],
+      default: [],
+    },
+    version: {
+      type: String,
+      default: '2.0.0',
+    },
+    rawResult: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {},
+    },
+  },
+  {
+    timestamps: true,
+  }
+);
 
-// Export as 'StaticAnalysis' so the Analysis model can find it
-module.exports = mongoose.model('StaticAnalysis', schema);
+staticAnalysisSchema.index({ sample: 1, createdAt: -1 });
+staticAnalysisSchema.index({ analysis: 1 });
+
+staticAnalysisSchema.statics.getLatestForSample = function (sampleId) {
+  return this.findOne({ sample: sampleId }).sort({ createdAt: -1 });
+};
+
+module.exports = mongoose.model('StaticAnalysis', staticAnalysisSchema);

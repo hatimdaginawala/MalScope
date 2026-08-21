@@ -44,6 +44,69 @@ class StaticAnalysisController {
     }
   }
 
+  // ===== NEW: Get API Intelligence =====
+  /**
+   * Get API intelligence results
+   * GET /api/v1/analyses/:analysisId/static/api-intelligence
+   */
+  static async getAPIIntelligence(req, res, next) {
+    try {
+      const { analysisId } = req.params;
+
+      const results = await StaticAnalysisService.getResults(analysisId);
+
+      if (!results.apiIntelligence) {
+        return res.status(200).json({
+          success: true,
+          data: null,
+          message: 'No API intelligence data available for this analysis',
+        });
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          summary: {
+            total_apis: results.apiIntelligence.total_apis || 0,
+            total_categories: results.apiIntelligence.total_categories || 0,
+            severity_summary: results.apiIntelligence.severity_summary || {},
+          },
+          categories: results.apiIntelligence.categories || {},
+          capabilities: results.apiIntelligence.capabilities || [],
+          top_categories: results.apiIntelligence.top_categories || [],
+          highRiskApis: results.highRiskApis || [],
+        },
+      });
+    } catch (error) {
+      logger.error(`Failed to get API intelligence: ${error.message}`, { error });
+      next(error);
+    }
+  }
+
+  // ===== NEW: Get High Risk APIs =====
+  /**
+   * Get high-risk APIs
+   * GET /api/v1/analyses/:analysisId/static/high-risk-apis
+   */
+  static async getHighRiskApis(req, res, next) {
+    try {
+      const { analysisId } = req.params;
+
+      const results = await StaticAnalysisService.getResults(analysisId);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          total: results.highRiskApis ? results.highRiskApis.length : 0,
+          apis: results.highRiskApis || [],
+        },
+      });
+    } catch (error) {
+      logger.error(`Failed to get high-risk APIs: ${error.message}`, { error });
+      next(error);
+    }
+  }
+
   /**
    * Get static analysis YARA matches
    * GET /api/v1/analyses/:analysisId/static/yara

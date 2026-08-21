@@ -4,7 +4,6 @@ Complete PE analyzer orchestrating all analysis components
 
 import os
 import hashlib
-import sys
 import pefile
 import re
 from typing import Dict, Any, List
@@ -23,6 +22,14 @@ from static.import_analyzer import ImportAnalyzer
 from static.entropy_analyzer import EntropyAnalyzer
 from static.string_analyzer import StringAnalyzer
 from static.yara_analyzer import YARAAnalyzer
+from static.api_intelligence import APIIntelligence
+
+# NEW imports - use absolute paths
+from static.header_analyzer import HeaderAnalyzer
+from static.tls_analyzer import TLSAnalyzer
+from static.debug_analyzer import DebugAnalyzer
+from static.rich_header_analyzer import RichHeaderAnalyzer
+from static.signature_analyzer import SignatureAnalyzer
 
 
 def get_utc_iso():
@@ -35,6 +42,7 @@ class PEAnalyzer:
     
     def __init__(self):
         self.yara_analyzer = YARAAnalyzer()
+        self.api_intelligence = APIIntelligence()
     
     def analyze(self, file_path: str) -> StaticAnalysisResult:
         """
@@ -86,6 +94,12 @@ class PEAnalyzer:
                 return result
             
             try:
+                # Header Analysis
+                result.dos_header = HeaderAnalyzer.analyze_dos_header(pe)
+                result.coff_header = HeaderAnalyzer.analyze_coff_header(pe)
+                result.optional_header = HeaderAnalyzer.analyze_optional_header(pe)
+                result.data_directories = HeaderAnalyzer.analyze_data_directories(pe)
+                
                 # Analyze sections
                 result.sections = SectionAnalyzer.analyze(pe)
                 
@@ -104,21 +118,59 @@ class PEAnalyzer:
                 # Analyze resources
                 result.resources = self._analyze_resources(pe)
                 
+                # TLS Analysis
+                result.tls = TLSAnalyzer.analyze(pe)
+                
+                # Debug Information
+                result.debug_info = DebugAnalyzer.analyze(pe)
+                
+                # Rich Header
+                result.rich_header = RichHeaderAnalyzer.analyze(pe)
+                
+                # Digital Signature
+                result.signature = SignatureAnalyzer.analyze(pe)
+                
                 # YARA scan
                 result.yara_matches = self.yara_analyzer.scan(file_path)
                 
-                # Generate findings
-                result.findings = self._generate_findings(
+                # ===== NEW: API Intelligence =====
+                api_result = self.api_intelligence.classify_imports(result.imports)
+                result.api_intelligence = self.api_intelligence.get_capability_summary(api_result)
+                result.high_risk_apis = self.api_intelligence.find_high_risk_apis(api_result)
+                
+                # Add findings from API intelligence
+                if api_result.total_categories > 0:
+                    for category, apis in api_result.categories.items():
+                        if len(apis) > 0:
+                            # Get category info
+                            cat_info = self.api_intelligence.categories.get(category)
+                            if cat_info:
+                                severity = cat_info.severity
+                                description = cat_info.description
+                            else:
+                                severity = 'medium'
+                                description = f'{category} capability'
+                            
+                            # Add a finding for this capability
+                            result.findings.append(Finding(
+                                type='api_capability',
+                                severity=severity,
+                                description=f"API indicators for {category.lower().replace('_', ' ')} capability",
+                                evidence=f"Found {len(apis)} APIs related to {category.lower().replace('_', ' ')}: {', '.join(apis[:3])}",
+                                confidence=0.8 if len(apis) > 3 else 0.6,
+                            ))
+                
+                # Generate findings from other sources
+                result.findings.extend(self._generate_findings(
                     file_info, result.imports, result.strings,
                     result.entropy, result.yara_matches
-                )
+                ))
                 
                 # Extract IOCs
                 result.iocs = self._extract_iocs(
                     file_info, result.strings, result.findings,
                     hashes
                 )
-                print(f"Extracted {len(result.iocs)} IOCs from static analysis", file=sys.stderr)
                 
                 result.success = True
                 
