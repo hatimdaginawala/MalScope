@@ -112,6 +112,20 @@ const staticAnalysisSchema = new mongoose.Schema(
       default: [],
     },
     
+    // ===== NEW: String Intelligence =====
+    stringIntelligence: {
+      type: mongoose.Schema.Types.Mixed,
+      default: {
+        total_strings: 0,
+        classified_count: 0,
+        category_counts: {},
+        suspicious_count: 0,
+        ioc_candidates: 0,
+        severity_summary: { low: 0, medium: 0, high: 0, critical: 0 },
+        top_categories: [],
+      },
+    },
+    
     // ===== YARA =====
     yaraMatches: {
       type: [mongoose.Schema.Types.Mixed],

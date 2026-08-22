@@ -12,170 +12,187 @@ const logger = require('../utils/logger');
 const { ApiError } = require('../middleware/errorMiddleware');
 
 class StaticAnalysisService {
-static async analyze(analysisId) {
-  try {
-    const analysis = await AnalysisService.getAnalysisById(analysisId);
-    if (!analysis) {
-      throw new ApiError(404, 'Analysis not found');
-    }
-
-    const canProceed = await AnalysisService.canProceed(analysisId);
-    if (!canProceed) {
-      throw new ApiError(400, `Analysis cannot proceed in current state: ${analysis.status}`);
-    }
-
-    await AnalysisService.updateStatus(analysisId, 'static_analysis', 'Starting static analysis');
-
-    const sample = await MalwareSample.findById(analysis.sample);
-    if (!sample) {
-      throw new ApiError(404, 'Sample not found');
-    }
-
-    let pythonResult;
+  static async analyze(analysisId) {
     try {
-      pythonResult = await PythonAnalysisService.runStaticAnalysis(sample.storagePath);
+      const analysis = await AnalysisService.getAnalysisById(analysisId);
+      if (!analysis) {
+        throw new ApiError(404, 'Analysis not found');
+      }
+
+      const canProceed = await AnalysisService.canProceed(analysisId);
+      if (!canProceed) {
+        throw new ApiError(400, `Analysis cannot proceed in current state: ${analysis.status}`);
+      }
+
+      await AnalysisService.updateStatus(analysisId, 'static_analysis', 'Starting static analysis');
+
+      const sample = await MalwareSample.findById(analysis.sample);
+      if (!sample) {
+        throw new ApiError(404, 'Sample not found');
+      }
+
+      let pythonResult;
+      try {
+        pythonResult = await PythonAnalysisService.runStaticAnalysis(sample.storagePath);
+      } catch (error) {
+        await AnalysisService.setError(analysisId, `Python analysis failed: ${error.message}`, 'static_analysis');
+        throw error;
+      }
+
+      if (!pythonResult.success) {
+        const errorMsg = pythonResult.errors ? pythonResult.errors.join(', ') : 'Unknown Python error';
+        await AnalysisService.setError(analysisId, errorMsg, 'static_analysis');
+        throw new ApiError(500, `Static analysis failed: ${errorMsg}`);
+      }
+
+      const result = pythonResult.result || {};
+
+      // ===== Log API Intelligence =====
+      logger.info(`API Intelligence from Python: total_apis=${result.apiIntelligence?.total_apis || 0}, highRiskApis=${result.highRiskApis?.length || 0}`);
+      
+      // ===== Log String Intelligence =====
+      logger.info(`String Intelligence from Python: total_strings=${result.stringIntelligence?.total_strings || 0}, classified=${result.stringIntelligence?.classified_count || 0}`);
+
+      // ===== API Intelligence with proper fallback =====
+      const apiIntelligence = result.apiIntelligence || {
+        total_apis: 0,
+        total_categories: 0,
+        categories: {},
+        severity_summary: { low: 0, medium: 0, high: 0, critical: 0 },
+        top_categories: [],
+        capabilities: [],
+      };
+
+      const highRiskApis = result.highRiskApis || [];
+
+      // ===== NEW: String Intelligence with proper fallback =====
+      const stringIntelligence = result.stringIntelligence || {
+        total_strings: 0,
+        classified_count: 0,
+        category_counts: {},
+        suspicious_count: 0,
+        ioc_candidates: 0,
+        severity_summary: { low: 0, medium: 0, high: 0, critical: 0 },
+        top_categories: [],
+      };
+
+      // ===== Create StaticAnalysis record =====
+      const staticAnalysis = new StaticAnalysis({
+        sample: sample._id,
+        analysis: analysisId,
+        fileInfo: result.file || {},
+        dosHeader: result.dosHeader || null,
+        coffHeader: result.coffHeader || null,
+        optionalHeader: result.optionalHeader || null,
+        dataDirectories: result.dataDirectories || [],
+        sections: result.sections || [],
+        imports: result.imports || [],
+        exports: result.exports || [],
+        strings: result.strings || { ascii: [], unicode: [], suspicious: [] },
+        entropy: result.entropy || { overall: 0, sections: [], highEntropySections: [] },
+        resources: result.resources || [],
+        tls: result.tls || null,
+        debugInfo: result.debugInfo || null,
+        richHeader: result.richHeader || null,
+        signature: result.signature || { signed: false },
+        
+        // ===== API Intelligence =====
+        apiIntelligence: apiIntelligence,
+        highRiskApis: highRiskApis,
+        
+        // ===== NEW: String Intelligence =====
+        stringIntelligence: stringIntelligence,
+        
+        yaraMatches: result.yaraMatches || [],
+        findings: result.findings || [],
+        processedAt: new Date(),
+        processingDuration: pythonResult.duration || 0,
+        warnings: pythonResult.warnings || [],
+        errors: pythonResult.errors || [],
+        version: '2.0.0',
+        rawResult: result,
+      });
+
+      await staticAnalysis.save();
+
+      // ===== Extract and save IOCs =====
+      const pythonIOCs = result.iocs || [];
+      logger.info(`Found ${pythonIOCs.length} IOCs from Python analysis`);
+      
+      let savedIOCCount = 0;
+      const iocIds = [];
+      for (const iocData of pythonIOCs) {
+        try {
+          const type = iocData.type || 'other';
+          const value = iocData.value || '';
+          
+          if (!value) continue;
+          
+          const normalizedValue = value.toLowerCase().trim();
+          
+          const existing = await IOC.findOne({
+            sample: sample._id,
+            type: type,
+            normalizedValue: normalizedValue,
+          });
+          
+          let ioc;
+          if (!existing) {
+            const newIOC = new IOC({
+              type: type,
+              value: value,
+              normalizedValue: normalizedValue,
+              source: 'static_analysis',
+              sample: sample._id,
+              analysis: analysisId,
+              confidence: iocData.confidence || 0.5,
+              severity: 'medium',
+              context: iocData.context || {},
+              tags: [],
+              firstSeen: new Date(),
+              lastSeen: new Date(),
+            });
+            ioc = await newIOC.save();
+          } else {
+            existing.lastSeen = new Date();
+            existing.confidence = Math.max(existing.confidence, iocData.confidence || 0.5);
+            ioc = await existing.save();
+          }
+          iocIds.push(ioc._id);
+          savedIOCCount++;
+        } catch (iocError) {
+          logger.warn(`Failed to save IOC: ${iocError.message}`);
+        }
+      }
+      logger.info(`Saved ${savedIOCCount} IOCs for sample ${sample._id}`);
+
+      // ===== Update analysis with references =====
+      await Analysis.updateOne(
+        { _id: analysisId },
+        {
+          staticAnalysis: staticAnalysis._id,
+          iocs: iocIds,
+        }
+      );
+
+      await AnalysisService.updateStatus(analysisId, 'completed', 'Static analysis completed successfully');
+      await AnalysisService.addLog(analysisId, 'Static analysis completed successfully', 'info');
+
+      // ===== Log completion summary =====
+      logger.info(`Analysis ${analysisId} completed. API Intelligence: ${apiIntelligence.total_apis} APIs, ${highRiskApis.length} high-risk. String Intelligence: ${stringIntelligence.total_strings} strings, ${stringIntelligence.classified_count} classified.`);
+
+      return {
+        staticAnalysis,
+        pythonResult,
+        iocs: pythonIOCs,
+        warnings: pythonResult.warnings || [],
+        errors: pythonResult.errors || [],
+      };
     } catch (error) {
-      await AnalysisService.setError(analysisId, `Python analysis failed: ${error.message}`, 'static_analysis');
+      logger.error(`Static analysis failed: ${error.message}`, { error });
       throw error;
     }
-
-    if (!pythonResult.success) {
-      const errorMsg = pythonResult.errors ? pythonResult.errors.join(', ') : 'Unknown Python error';
-      await AnalysisService.setError(analysisId, errorMsg, 'static_analysis');
-      throw new ApiError(500, `Static analysis failed: ${errorMsg}`);
-    }
-
-    const result = pythonResult.result || {};
-
-    // ===== DEBUG: Log what we got =====
-    logger.info(`API Intelligence from Python: total_apis=${result.apiIntelligence?.total_apis || 0}, highRiskApis=${result.highRiskApis?.length || 0}`);
-
-    // ===== API Intelligence with proper fallback =====
-    const apiIntelligence = result.apiIntelligence || {
-      total_apis: 0,
-      total_categories: 0,
-      categories: {},
-      severity_summary: { low: 0, medium: 0, high: 0, critical: 0 },
-      top_categories: [],
-      capabilities: [],
-    };
-
-    const highRiskApis = result.highRiskApis || [];
-
-    // ===== Create StaticAnalysis record =====
-    const staticAnalysis = new StaticAnalysis({
-      sample: sample._id,
-      analysis: analysisId,
-      fileInfo: result.file || {},
-      dosHeader: result.dosHeader || null,
-      coffHeader: result.coffHeader || null,
-      optionalHeader: result.optionalHeader || null,
-      dataDirectories: result.dataDirectories || [],
-      sections: result.sections || [],
-      imports: result.imports || [],
-      exports: result.exports || [],
-      strings: result.strings || { ascii: [], unicode: [], suspicious: [] },
-      entropy: result.entropy || { overall: 0, sections: [], highEntropySections: [] },
-      resources: result.resources || [],
-      tls: result.tls || null,
-      debugInfo: result.debugInfo || null,
-      richHeader: result.richHeader || null,
-      signature: result.signature || { signed: false },
-      
-      // ===== API Intelligence =====
-      apiIntelligence: apiIntelligence,
-      highRiskApis: highRiskApis,
-      
-      yaraMatches: result.yaraMatches || [],
-      findings: result.findings || [],
-      processedAt: new Date(),
-      processingDuration: pythonResult.duration || 0,
-      warnings: pythonResult.warnings || [],
-      errors: pythonResult.errors || [],
-      version: '2.0.0',
-      rawResult: result,
-    });
-
-    await staticAnalysis.save();
-
-    // ===== Extract and save IOCs =====
-    const pythonIOCs = result.iocs || [];
-    logger.info(`Found ${pythonIOCs.length} IOCs from Python analysis`);
-    
-    let savedIOCCount = 0;
-    const iocIds = [];
-    for (const iocData of pythonIOCs) {
-      try {
-        const type = iocData.type || 'other';
-        const value = iocData.value || '';
-        
-        if (!value) continue;
-        
-        const normalizedValue = value.toLowerCase().trim();
-        
-        const existing = await IOC.findOne({
-          sample: sample._id,
-          type: type,
-          normalizedValue: normalizedValue,
-        });
-        
-        let ioc;
-        if (!existing) {
-          const newIOC = new IOC({
-            type: type,
-            value: value,
-            normalizedValue: normalizedValue,
-            source: 'static_analysis',
-            sample: sample._id,
-            analysis: analysisId,
-            confidence: iocData.confidence || 0.5,
-            severity: 'medium',
-            context: iocData.context || {},
-            tags: [],
-            firstSeen: new Date(),
-            lastSeen: new Date(),
-          });
-          ioc = await newIOC.save();
-        } else {
-          existing.lastSeen = new Date();
-          existing.confidence = Math.max(existing.confidence, iocData.confidence || 0.5);
-          ioc = await existing.save();
-        }
-        iocIds.push(ioc._id);
-        savedIOCCount++;
-      } catch (iocError) {
-        logger.warn(`Failed to save IOC: ${iocError.message}`);
-      }
-    }
-    logger.info(`Saved ${savedIOCCount} IOCs for sample ${sample._id}`);
-
-    // ===== Update analysis with references =====
-    await Analysis.updateOne(
-      { _id: analysisId },
-      {
-        staticAnalysis: staticAnalysis._id,
-        iocs: iocIds,
-      }
-    );
-
-    await AnalysisService.updateStatus(analysisId, 'completed', 'Static analysis completed successfully');
-    await AnalysisService.addLog(analysisId, 'Static analysis completed successfully', 'info');
-
-    // ===== Log success with API intelligence count =====
-    logger.info(`Analysis ${analysisId} completed. API Intelligence: ${apiIntelligence.total_apis} APIs, ${highRiskApis.length} high-risk`);
-
-    return {
-      staticAnalysis,
-      pythonResult,
-      iocs: pythonIOCs,
-      warnings: pythonResult.warnings || [],
-      errors: pythonResult.errors || [],
-    };
-  } catch (error) {
-    logger.error(`Static analysis failed: ${error.message}`, { error });
-    throw error;
   }
-}
 
   /**
    * Extract configuration indicators from static analysis results

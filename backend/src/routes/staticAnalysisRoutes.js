@@ -103,4 +103,10 @@ router.post(
   StaticAnalysisController.rerun
 );
 
+router.get(
+  '/:analysisId/static/string-intelligence',
+  authenticate,
+  StaticAnalysisController.getStringIntelligence
+);
+
 module.exports = router;

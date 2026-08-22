@@ -6,23 +6,27 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
+
 @dataclass
-class APICapability:
-    """API capability classification"""
+class ClassifiedString:
+    """Classified string with metadata"""
+    value: str
     category: str
-    description: str
-    severity: str  # low, medium, high, critical
-    apis: List[str] = field(default_factory=list)
+    severity: str
+    evidence: str
+    confidence: float
 
 
 @dataclass
-class APIAnalysisResult:
-    """API intelligence analysis result"""
-    categories: Dict[str, List[str]] = field(default_factory=dict)  # category -> list of APIs
-    total_apis: int = 0
-    total_categories: int = 0
-    severity_summary: Dict[str, int] = field(default_factory=dict)
-    top_categories: List[Dict] = field(default_factory=list)
+class StringIntelligenceResult:
+    """String intelligence analysis result"""
+    total_strings: int
+    classified_strings: List[ClassifiedString]
+    category_counts: Dict[str, int]
+    suspicious_count: int
+    ioc_candidates: List[ClassifiedString]
+    severity_summary: Dict[str, int]
+
 
 @dataclass
 class PEInfo:
@@ -110,63 +114,13 @@ class OptionalHeader:
     loader_flags: int
     number_of_rva_and_sizes: int
 
+
 @dataclass
 class DataDirectory:
     """Data directory entry"""
     name: str
     virtual_address: int
     size: int
-
-
-@dataclass
-class TLSEntry:
-    """TLS (Thread Local Storage) entry"""
-    start_address_of_raw_data: int
-    end_address_of_raw_data: int
-    address_of_index: int
-    address_of_callbacks: int
-    size_of_zero_fill: int
-    characteristics: int
-
-
-@dataclass
-class DebugInfo:
-    """Debug information"""
-    type: str
-    timestamp: Optional[str] = None
-    age: Optional[int] = None
-    guid: Optional[str] = None
-    pdb_filename: Optional[str] = None
-
-
-@dataclass
-class RichHeaderEntry:
-    """Rich header entry"""
-    product_id: int
-    build_id: int
-    count: int
-
-
-@dataclass
-class RichHeader:
-    """Rich header information"""
-    checksum: int
-    entries: List[RichHeaderEntry]
-
-
-@dataclass
-class SignatureInfo:
-    """Digital signature information"""
-    signed: bool
-    signer: Optional[str] = None
-    issuer: Optional[str] = None
-    serial_number: Optional[str] = None
-    valid_from: Optional[str] = None
-    valid_to: Optional[str] = None
-    algorithm: Optional[str] = None
-    timestamp: Optional[str] = None
-    verification_result: Optional[str] = None
-    certificate_chain: List[str] = field(default_factory=list)
 
 
 @dataclass
@@ -222,6 +176,57 @@ class ResourceInfo:
 
 
 @dataclass
+class TLSEntry:
+    """TLS (Thread Local Storage) entry"""
+    start_address_of_raw_data: int
+    end_address_of_raw_data: int
+    address_of_index: int
+    address_of_callbacks: int
+    size_of_zero_fill: int
+    characteristics: int
+
+
+@dataclass
+class DebugInfo:
+    """Debug information"""
+    type: str
+    timestamp: Optional[str] = None
+    age: Optional[int] = None
+    guid: Optional[str] = None
+    pdb_filename: Optional[str] = None
+
+
+@dataclass
+class RichHeaderEntry:
+    """Rich header entry"""
+    product_id: int
+    build_id: int
+    count: int
+
+
+@dataclass
+class RichHeader:
+    """Rich header information"""
+    checksum: int
+    entries: List[RichHeaderEntry]
+
+
+@dataclass
+class SignatureInfo:
+    """Digital signature information"""
+    signed: bool
+    signer: Optional[str] = None
+    issuer: Optional[str] = None
+    serial_number: Optional[str] = None
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+    algorithm: Optional[str] = None
+    timestamp: Optional[str] = None
+    verification_result: Optional[str] = None
+    certificate_chain: List[str] = field(default_factory=list)
+
+
+@dataclass
 class YARAMatch:
     """YARA rule match"""
     rule_name: str
@@ -235,19 +240,38 @@ class YARAMatch:
 class Finding:
     """Static analysis finding"""
     type: str
-    severity: str  # low, medium, high, critical
+    severity: str
     description: str
     evidence: str
-    confidence: float  # 0.0 to 1.0
+    confidence: float
 
 
 @dataclass
 class IOC:
     """Indicator of Compromise"""
-    type: str  # ip, domain, url, file_path, registry_key, hash
+    type: str
     value: str
     confidence: float
     context: Dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass
+class APICapability:
+    """API capability classification"""
+    category: str
+    description: str
+    severity: str
+    apis: List[str] = field(default_factory=list)
+
+
+@dataclass
+class APIAnalysisResult:
+    """API intelligence analysis result"""
+    categories: Dict[str, List[str]] = field(default_factory=dict)
+    total_apis: int = 0
+    total_categories: int = 0
+    severity_summary: Dict[str, int] = field(default_factory=dict)
+    top_categories: List[Dict] = field(default_factory=list)
 
 
 @dataclass
@@ -276,6 +300,9 @@ class StaticAnalysisResult:
     warnings: List[str] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     
-    # New fields for API Intelligence
+    # API Intelligence
     api_intelligence: Dict[str, Any] = field(default_factory=dict)
     high_risk_apis: List[Dict] = field(default_factory=list)
+    
+    # String Intelligence
+    string_intelligence: Dict[str, Any] = field(default_factory=dict)

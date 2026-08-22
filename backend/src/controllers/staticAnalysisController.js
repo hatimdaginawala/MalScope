@@ -263,6 +263,45 @@ class StaticAnalysisController {
       next(error);
     }
   }
+
+  // ===== NEW: Get String Intelligence =====
+/**
+ * Get string intelligence results
+ * GET /api/v1/analyses/:analysisId/static/string-intelligence
+ */
+static async getStringIntelligence(req, res, next) {
+  try {
+    const { analysisId } = req.params;
+
+    const results = await StaticAnalysisService.getResults(analysisId);
+
+    if (!results.stringIntelligence) {
+      return res.status(200).json({
+        success: true,
+        data: null,
+        message: 'No string intelligence data available for this analysis',
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        summary: {
+          total_strings: results.stringIntelligence.total_strings || 0,
+          classified_count: results.stringIntelligence.classified_count || 0,
+          suspicious_count: results.stringIntelligence.suspicious_count || 0,
+          ioc_candidates: results.stringIntelligence.ioc_candidates || 0,
+          severity_summary: results.stringIntelligence.severity_summary || {},
+        },
+        category_counts: results.stringIntelligence.category_counts || {},
+        top_categories: results.stringIntelligence.top_categories || [],
+      },
+    });
+  } catch (error) {
+    logger.error(`Failed to get string intelligence: ${error.message}`, { error });
+    next(error);
+  }
+}
 }
 
 module.exports = StaticAnalysisController;

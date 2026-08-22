@@ -1,0 +1,110 @@
+{
+  "patterns": {
+    "url": {
+      "description": "URL patterns",
+      "severity": "medium",
+      "regex": [
+        "https?://[^\\s<>\"']+",
+        "ftp://[^\\s<>\"']+",
+        "www\\.[a-zA-Z0-9-]+\\.[a-zA-Z]{2,}"
+      ]
+    },
+    "domain": {
+      "description": "Domain names",
+      "severity": "medium",
+      "regex": [
+        "[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\\.[a-zA-Z]{2,}",
+        "[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\\.[a-zA-Z]{2,}\\.[a-zA-Z]{2,}"
+      ]
+    },
+    "ipv4": {
+      "description": "IPv4 addresses",
+      "severity": "high",
+      "regex": [
+        "\\b(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\.(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\\b"
+      ]
+    },
+    "ipv6": {
+      "description": "IPv6 addresses",
+      "severity": "high",
+      "regex": [
+        "\\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\\b",
+        "\\b(?:[0-9a-fA-F]{1,4}:){1,7}:\\b",
+        "\\b::(?:[0-9a-fA-F]{1,4}:){0,6}[0-9a-fA-F]{1,4}\\b"
+      ]
+    },
+    "file_path": {
+      "description": "Windows file paths",
+      "severity": "low",
+      "regex": [
+        "[A-Za-z]:\\\\[^\\s<>\"']+\\\\[^\\s<>\"']+",
+        "[A-Za-z]:\\\\[^\\s<>\"']+",
+        "\\\\\\\\([^\\\\]+)\\\\([^\\\\]+)\\\\([^\\\\]+)"
+      ]
+    },
+    "registry_path": {
+      "description": "Windows registry paths",
+      "severity": "medium",
+      "regex": [
+        "[A-Za-z_][A-Za-z0-9_]*\\\\[A-Za-z_][A-Za-z0-9_]*\\\\[A-Za-z_][A-Za-z0-9_]*",
+        "HKEY_[A-Z_]+\\\\[A-Za-z_][A-Za-z0-9_]*",
+        "SYSTEM\\\\CurrentControlSet",
+        "Software\\\\Microsoft\\\\Windows",
+        "CurrentVersion\\\\Run"
+      ]
+    },
+    "command": {
+      "description": "Command execution patterns",
+      "severity": "high",
+      "regex": [
+        "cmd\\.exe",
+        "powershell\\.exe",
+        "wscript\\.exe",
+        "cscript\\.exe",
+        "rundll32\\.exe",
+        "regsvr32\\.exe",
+        "mshta\\.exe",
+        "certutil\\.exe",
+        "bitsadmin\\.exe"
+      ]
+    },
+    "mutex": {
+      "description": "Mutex-like strings",
+      "severity": "low",
+      "regex": [
+        "Global\\\\[A-Za-z0-9_\\-]+",
+        "Local\\\\[A-Za-z0-9_\\-]+",
+        "[A-Za-z0-9_\\-]{8}-[A-Za-z0-9_\\-]{4}-[A-Za-z0-9_\\-]{4}-[A-Za-z0-9_\\-]{4}-[A-Za-z0-9_\\-]{12}",
+        "_[A-Za-z0-9_\\-]{10,}",
+        "Mutex[A-Za-z0-9_\\-]+"
+      ]
+    },
+    "suspicious_string": {
+      "description": "Suspicious string patterns",
+      "severity": "high",
+      "regex": [
+        "\\b(?:ransom|encrypt|decrypt|steal|keylog|hack|exploit|malware|trojan|virus)\\b",
+        "\\b(?:password|credential|token|secret|key)\\b",
+        "\\b(?:inject|bypass|evade|hide|disable)\\b",
+        "\\b(?:persist|startup|schedule|service)\\b"
+      ]
+    },
+    "email": {
+      "description": "Email addresses",
+      "severity": "low",
+      "regex": [
+        "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+      ]
+    },
+    "user_agent": {
+      "description": "User-Agent strings",
+      "severity": "medium",
+      "regex": [
+        "User-Agent: [^\\s]+",
+        "Mozilla/[0-9.]+\\s+\\([^)]+\\)",
+        "curl/[0-9.]+",
+        "wget/[0-9.]+"
+      ]
+    }
+  }
+}

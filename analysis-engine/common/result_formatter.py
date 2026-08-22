@@ -299,6 +299,8 @@ class ResultFormatter:
             'iocs': iocs,
             'warnings': result.warnings,
             'errors': result.errors,
+            # In the return dict, add this line:
+            'stringIntelligence': result.string_intelligence if hasattr(result, 'string_intelligence') and result.string_intelligence else None,
         }
     
     @staticmethod

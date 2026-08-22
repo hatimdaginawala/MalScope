@@ -6,6 +6,7 @@ import os
 import hashlib
 import pefile
 import re
+import sys
 from typing import Dict, Any, List
 from datetime import datetime, timezone
 
@@ -23,8 +24,9 @@ from static.entropy_analyzer import EntropyAnalyzer
 from static.string_analyzer import StringAnalyzer
 from static.yara_analyzer import YARAAnalyzer
 from static.api_intelligence import APIIntelligence
+from static.string_intelligence import StringIntelligence
 
-# NEW imports - use absolute paths
+# NEW imports
 from static.header_analyzer import HeaderAnalyzer
 from static.tls_analyzer import TLSAnalyzer
 from static.debug_analyzer import DebugAnalyzer
@@ -43,6 +45,7 @@ class PEAnalyzer:
     def __init__(self):
         self.yara_analyzer = YARAAnalyzer()
         self.api_intelligence = APIIntelligence()
+        self.string_intelligence = StringIntelligence()
     
     def analyze(self, file_path: str) -> StaticAnalysisResult:
         """
@@ -112,6 +115,42 @@ class PEAnalyzer:
                 # Analyze strings
                 result.strings = StringAnalyzer.analyze(pe)
                 
+                # ===== NEW: String Intelligence =====
+                all_strings = []
+                if result.strings:
+                    all_strings.extend(result.strings.ascii[:1000])
+                    all_strings.extend(result.strings.unicode[:500])
+                
+                if all_strings:
+                    string_intel_result = self.string_intelligence.classify_strings(all_strings)
+                    result.string_intelligence = self.string_intelligence.get_summary(string_intel_result)
+                    
+                    # Add findings for suspicious strings
+                    if string_intel_result.suspicious_count > 0:
+                        result.findings.append(Finding(
+                            type='suspicious_strings_detected',
+                            severity='medium',
+                            description=f"Found {string_intel_result.suspicious_count} suspicious strings",
+                            evidence=f"Suspicious strings found in {len(set(s.category for s in string_intel_result.classified_strings if s.category == 'suspicious'))} categories",
+                            confidence=0.7,
+                        ))
+                    
+                    # Add findings for high severity strings (IOC candidates)
+                    high_severity_strings = [s for s in string_intel_result.classified_strings if s.severity in ['high', 'critical']]
+                    if high_severity_strings:
+                        categories = {}
+                        for s in high_severity_strings[:10]:
+                            categories[s.category] = categories.get(s.category, 0) + 1
+                        
+                        category_str = ', '.join([f"{cat} ({count})" for cat, count in categories.items()])
+                        result.findings.append(Finding(
+                            type='high_severity_strings',
+                            severity='high',
+                            description=f"Found {len(high_severity_strings)} high-severity strings",
+                            evidence=f"Categories: {category_str}",
+                            confidence=0.8,
+                        ))
+                
                 # Analyze entropy
                 result.entropy = EntropyAnalyzer.analyze(pe)
                 
@@ -133,7 +172,7 @@ class PEAnalyzer:
                 # YARA scan
                 result.yara_matches = self.yara_analyzer.scan(file_path)
                 
-                # ===== NEW: API Intelligence =====
+                # ===== API Intelligence =====
                 api_result = self.api_intelligence.classify_imports(result.imports)
                 result.api_intelligence = self.api_intelligence.get_capability_summary(api_result)
                 result.high_risk_apis = self.api_intelligence.find_high_risk_apis(api_result)
@@ -142,16 +181,12 @@ class PEAnalyzer:
                 if api_result.total_categories > 0:
                     for category, apis in api_result.categories.items():
                         if len(apis) > 0:
-                            # Get category info
                             cat_info = self.api_intelligence.categories.get(category)
                             if cat_info:
                                 severity = cat_info.severity
-                                description = cat_info.description
                             else:
                                 severity = 'medium'
-                                description = f'{category} capability'
                             
-                            # Add a finding for this capability
                             result.findings.append(Finding(
                                 type='api_capability',
                                 severity=severity,
@@ -160,7 +195,7 @@ class PEAnalyzer:
                                 confidence=0.8 if len(apis) > 3 else 0.6,
                             ))
                 
-                # Generate findings from other sources
+                # Generate other findings
                 result.findings.extend(self._generate_findings(
                     file_info, result.imports, result.strings,
                     result.entropy, result.yara_matches

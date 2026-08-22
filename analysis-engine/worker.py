@@ -80,7 +80,11 @@ def main():
             
             # Format results - this returns a dict with proper arrays
             formatted_result = ResultFormatter.to_dict(analysis_result)
-            
+
+            if formatted_result.get('stringIntelligence'):
+                total = formatted_result['stringIntelligence'].get('total_strings', 0)
+                classified = formatted_result['stringIntelligence'].get('classified_count', 0)
+                print(f"📊 String Intelligence: {total} strings, {classified} classified", file=sys.stderr)
             # ===== ENHANCED DEBUG OUTPUT =====
             # Print summary of extracted data
             print("=" * 50, file=sys.stderr)
