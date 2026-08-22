@@ -301,6 +301,10 @@ class ResultFormatter:
             'errors': result.errors,
             # In the return dict, add this line:
             'stringIntelligence': result.string_intelligence if hasattr(result, 'string_intelligence') and result.string_intelligence else None,
+            # In the return dict:
+            'resourceDetails': result.resource_details if hasattr(result, 'resource_details') else [],
+            'resourceSummary': result.resource_summary if hasattr(result, 'resource_summary') else {},
+            'signatureAnalysis': result.signature_analysis if hasattr(result, 'signature_analysis') else None,
         }
     
     @staticmethod

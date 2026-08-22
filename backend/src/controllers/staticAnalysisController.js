@@ -302,6 +302,53 @@ static async getStringIntelligence(req, res, next) {
     next(error);
   }
 }
+// ===== Get Resource Summary =====
+static async getResourceSummary(req, res, next) {
+  try {
+    const { analysisId } = req.params;
+    const results = await StaticAnalysisService.getResults(analysisId);
+    
+    res.status(200).json({
+      success: true,
+      data: results.resourceSummary || null,
+    });
+  } catch (error) {
+    logger.error(`Failed to get resource summary: ${error.message}`, { error });
+    next(error);
+  }
+}
+
+// ===== Get Resource Details =====
+static async getResourceDetails(req, res, next) {
+  try {
+    const { analysisId } = req.params;
+    const results = await StaticAnalysisService.getResults(analysisId);
+    
+    res.status(200).json({
+      success: true,
+      data: results.resourceDetails || [],
+    });
+  } catch (error) {
+    logger.error(`Failed to get resource details: ${error.message}`, { error });
+    next(error);
+  }
+}
+
+// ===== Get Signature Analysis =====
+static async getSignatureAnalysis(req, res, next) {
+  try {
+    const { analysisId } = req.params;
+    const results = await StaticAnalysisService.getResults(analysisId);
+    
+    res.status(200).json({
+      success: true,
+      data: results.signatureAnalysis || null,
+    });
+  } catch (error) {
+    logger.error(`Failed to get signature analysis: ${error.message}`, { error });
+    next(error);
+  }
+}
 }
 
 module.exports = StaticAnalysisController;

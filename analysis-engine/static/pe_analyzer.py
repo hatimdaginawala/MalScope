@@ -25,6 +25,8 @@ from static.string_analyzer import StringAnalyzer
 from static.yara_analyzer import YARAAnalyzer
 from static.api_intelligence import APIIntelligence
 from static.string_intelligence import StringIntelligence
+from static.resource_analyzer import ResourceAnalyzer
+from static.certificate_analyzer import CertificateAnalyzer
 
 # NEW imports
 from static.header_analyzer import HeaderAnalyzer
@@ -46,6 +48,8 @@ class PEAnalyzer:
         self.yara_analyzer = YARAAnalyzer()
         self.api_intelligence = APIIntelligence()
         self.string_intelligence = StringIntelligence()
+        self.resource_analyzer = ResourceAnalyzer()  # Moved inside __init__
+        self.certificate_analyzer = CertificateAnalyzer()  # Moved inside __init__
     
     def analyze(self, file_path: str) -> StaticAnalysisResult:
         """
@@ -115,7 +119,7 @@ class PEAnalyzer:
                 # Analyze strings
                 result.strings = StringAnalyzer.analyze(pe)
                 
-                # ===== NEW: String Intelligence =====
+                # ===== String Intelligence =====
                 all_strings = []
                 if result.strings:
                     all_strings.extend(result.strings.ascii[:1000])
@@ -157,6 +161,21 @@ class PEAnalyzer:
                 # Analyze resources
                 result.resources = self._analyze_resources(pe)
                 
+                # ===== NEW: Resource Analysis =====
+                resource_details = self.resource_analyzer.analyze(pe)
+                result.resource_details = resource_details
+                result.resource_summary = self.resource_analyzer.get_summary(resource_details)
+                
+                # Add findings for suspicious resources
+                if result.resource_summary and result.resource_summary.get('suspicious_resources', 0) > 0:
+                    result.findings.append(Finding(
+                        type='suspicious_resources',
+                        severity='medium',
+                        description=f"Found {result.resource_summary['suspicious_resources']} suspicious resources",
+                        evidence=f"Suspicious resources found in {len([r for r in resource_details if r.is_suspicious])} resources",
+                        confidence=0.7,
+                    ))
+                
                 # TLS Analysis
                 result.tls = TLSAnalyzer.analyze(pe)
                 
@@ -168,6 +187,26 @@ class PEAnalyzer:
                 
                 # Digital Signature
                 result.signature = SignatureAnalyzer.analyze(pe)
+                
+                # ===== NEW: Certificate/Signature Analysis =====
+                result.signature_analysis = self.certificate_analyzer.analyze(pe)
+                
+                if result.signature_analysis and result.signature_analysis.is_signed:
+                    result.findings.append(Finding(
+                        type='signed_file',
+                        severity='low',
+                        description="File has a digital signature",
+                        evidence=f"Signed by: {result.signature_analysis.signer or 'Unknown'}",
+                        confidence=1.0,
+                    ))
+                elif result.signature_analysis and not result.signature_analysis.is_signed:
+                    result.findings.append(Finding(
+                        type='unsigned_file',
+                        severity='low',
+                        description="File is not digitally signed",
+                        evidence="No digital signature found in PE file",
+                        confidence=1.0,
+                    ))
                 
                 # YARA scan
                 result.yara_matches = self.yara_analyzer.scan(file_path)
@@ -241,7 +280,7 @@ class PEAnalyzer:
         return exports
     
     def _analyze_resources(self, pe: pefile.PE) -> List[ResourceInfo]:
-        """Analyze PE resources"""
+        """Analyze PE resources (legacy)"""
         resources = []
         
         if not hasattr(pe, 'DIRECTORY_ENTRY_RESOURCE'):

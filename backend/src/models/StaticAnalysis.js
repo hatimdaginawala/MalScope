@@ -125,7 +125,38 @@ const staticAnalysisSchema = new mongoose.Schema(
         top_categories: [],
       },
     },
-    
+    // ===== Resource Analysis =====
+resourceDetails: {
+  type: [mongoose.Schema.Types.Mixed],
+  default: [],
+},
+resourceSummary: {
+  type: mongoose.Schema.Types.Mixed,
+  default: {
+    total_resources: 0,
+    suspicious_resources: 0,
+    total_size: 0,
+    categories: {},
+    types: {},
+    has_suspicious: false,
+  },
+},
+
+// ===== Signature Analysis =====
+signatureAnalysis: {
+  type: mongoose.Schema.Types.Mixed,
+  default: {
+    is_signed: false,
+    verification_status: 'Not verified',
+    certificate_chain: [],
+    certificate_count: 0,
+    is_timestamped: false,
+    is_trusted: false,
+    is_expired: false,
+    is_revoked: false,
+    warnings: [],
+  },
+},
     // ===== YARA =====
     yaraMatches: {
       type: [mongoose.Schema.Types.Mixed],

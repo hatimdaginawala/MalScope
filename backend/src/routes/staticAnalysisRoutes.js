@@ -108,5 +108,23 @@ router.get(
   authenticate,
   StaticAnalysisController.getStringIntelligence
 );
+// ===== Resource Analysis Routes =====
+router.get(
+  '/:analysisId/static/resources/summary',
+  authenticate,
+  StaticAnalysisController.getResourceSummary
+);
 
+router.get(
+  '/:analysisId/static/resources/details',
+  authenticate,
+  StaticAnalysisController.getResourceDetails
+);
+
+// ===== Signature Analysis Route =====
+router.get(
+  '/:analysisId/static/signature',
+  authenticate,
+  StaticAnalysisController.getSignatureAnalysis
+);
 module.exports = router;

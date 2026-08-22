@@ -1,0 +1,130 @@
+{
+  "resource_types": {
+    "RT_CURSOR": {
+      "id": 1,
+      "description": "Cursor resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_BITMAP": {
+      "id": 2,
+      "description": "Bitmap resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_ICON": {
+      "id": 3,
+      "description": "Icon resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_MENU": {
+      "id": 4,
+      "description": "Menu resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_DIALOG": {
+      "id": 5,
+      "description": "Dialog resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_STRING": {
+      "id": 6,
+      "description": "String table resource",
+      "category": "data",
+      "severity": "low"
+    },
+    "RT_FONTDIR": {
+      "id": 7,
+      "description": "Font directory resource",
+      "category": "data",
+      "severity": "low"
+    },
+    "RT_FONT": {
+      "id": 8,
+      "description": "Font resource",
+      "category": "data",
+      "severity": "low"
+    },
+    "RT_ACCELERATOR": {
+      "id": 9,
+      "description": "Accelerator resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_RCDATA": {
+      "id": 10,
+      "description": "Raw data resource",
+      "category": "data",
+      "severity": "medium"
+    },
+    "RT_MESSAGETABLE": {
+      "id": 11,
+      "description": "Message table resource",
+      "category": "data",
+      "severity": "low"
+    },
+    "RT_GROUP_CURSOR": {
+      "id": 12,
+      "description": "Group cursor resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_GROUP_ICON": {
+      "id": 14,
+      "description": "Group icon resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_VERSION": {
+      "id": 16,
+      "description": "Version information",
+      "category": "metadata",
+      "severity": "low"
+    },
+    "RT_DLGINCLUDE": {
+      "id": 17,
+      "description": "Dialog include resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_PLUGPLAY": {
+      "id": 19,
+      "description": "Plug and Play resource",
+      "category": "system",
+      "severity": "low"
+    },
+    "RT_VXD": {
+      "id": 20,
+      "description": "VXD resource",
+      "category": "system",
+      "severity": "low"
+    },
+    "RT_ANICURSOR": {
+      "id": 21,
+      "description": "Animated cursor resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_ANIICON": {
+      "id": 22,
+      "description": "Animated icon resource",
+      "category": "ui",
+      "severity": "low"
+    },
+    "RT_HTML": {
+      "id": 23,
+      "description": "HTML resource",
+      "category": "web",
+      "severity": "medium"
+    },
+    "RT_MANIFEST": {
+      "id": 24,
+      "description": "Application manifest",
+      "category": "metadata",
+      "severity": "low"
+    }
+  }
+}

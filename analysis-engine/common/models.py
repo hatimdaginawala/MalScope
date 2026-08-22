@@ -6,7 +6,67 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Any
 from datetime import datetime
 
+@dataclass
+class ResourceDetails:
+    """Detailed resource information"""
+    type: str
+    type_id: int
+    type_category: str
+    type_severity: str
+    id: int
+    language: int
+    size: int
+    sha256: str
+    data: Optional[bytes] = None
+    entropy: float = 0.0
+    is_suspicious: bool = False
+    suspicious_reason: Optional[str] = None
+    embedded_indicators: List[str] = field(default_factory=list)
 
+
+@dataclass
+class CertificateInfo:
+    """Certificate information"""
+    subject: str
+    issuer: str
+    serial_number: str
+    valid_from: str
+    valid_to: str
+    algorithm: str
+    signature_algorithm: str
+    thumbprint: str
+    subject_alt_names: List[str] = field(default_factory=list)
+    key_usage: List[str] = field(default_factory=list)
+    extended_key_usage: List[str] = field(default_factory=list)
+    is_ca: bool = False
+    is_self_signed: bool = False
+    revocation_status: Optional[str] = None
+
+
+@dataclass
+class SignatureAnalysisResult:
+    """Digital signature analysis result"""
+    is_signed: bool
+    signer: Optional[str] = None
+    issuer: Optional[str] = None
+    serial_number: Optional[str] = None
+    valid_from: Optional[str] = None
+    valid_to: Optional[str] = None
+    algorithm: Optional[str] = None
+    timestamp: Optional[str] = None
+    timestamp_authority: Optional[str] = None
+    verification_status: str = "Not verified"
+    certificate_chain: List[CertificateInfo] = field(default_factory=list)
+    certificate_count: int = 0
+    is_timestamped: bool = False
+    is_trusted: bool = False
+    is_expired: bool = False
+    is_revoked: bool = False
+    warnings: List[str] = field(default_factory=list)
+    # Add to StaticAnalysisResult:
+    resource_details: List[ResourceDetails] = field(default_factory=list)
+    resource_summary: Dict[str, Any] = field(default_factory=dict)
+    signature_analysis: Optional[SignatureAnalysisResult] = None
 @dataclass
 class ClassifiedString:
     """Classified string with metadata"""

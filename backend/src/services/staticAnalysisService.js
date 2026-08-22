@@ -111,6 +111,27 @@ class StaticAnalysisService {
         errors: pythonResult.errors || [],
         version: '2.0.0',
         rawResult: result,
+        // In the StaticAnalysis creation, add:
+resourceDetails: result.resourceDetails || [],
+resourceSummary: result.resourceSummary || {
+  total_resources: 0,
+  suspicious_resources: 0,
+  total_size: 0,
+  categories: {},
+  types: {},
+  has_suspicious: false,
+},
+signatureAnalysis: result.signatureAnalysis || {
+  is_signed: false,
+  verification_status: 'Not verified',
+  certificate_chain: [],
+  certificate_count: 0,
+  is_timestamped: false,
+  is_trusted: false,
+  is_expired: false,
+  is_revoked: false,
+  warnings: [],
+},
       });
 
       await staticAnalysis.save();
