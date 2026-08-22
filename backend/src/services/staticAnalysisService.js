@@ -12,7 +12,7 @@ const logger = require('../utils/logger');
 const { ApiError } = require('../middleware/errorMiddleware');
 
 class StaticAnalysisService {
-  static async analyze(analysisId) {
+static async analyze(analysisId) {
     try {
       const analysis = await AnalysisService.getAnalysisById(analysisId);
       if (!analysis) {
@@ -47,13 +47,13 @@ class StaticAnalysisService {
 
       const result = pythonResult.result || {};
 
-      // ===== Log API Intelligence =====
-      logger.info(`API Intelligence from Python: total_apis=${result.apiIntelligence?.total_apis || 0}, highRiskApis=${result.highRiskApis?.length || 0}`);
-      
-      // ===== Log String Intelligence =====
-      logger.info(`String Intelligence from Python: total_strings=${result.stringIntelligence?.total_strings || 0}, classified=${result.stringIntelligence?.classified_count || 0}`);
+      // ===== Log Intelligence =====
+      logger.info(`API Intelligence: total_apis=${result.apiIntelligence?.total_apis || 0}`);
+      logger.info(`String Intelligence: total_strings=${result.stringIntelligence?.total_strings || 0}`);
+      logger.info(`Resource Analysis: ${result.resourceSummary?.total_resources || 0} resources`);
+      logger.info(`Signature Analysis: is_signed=${result.signatureAnalysis?.is_signed || false}`);
 
-      // ===== API Intelligence with proper fallback =====
+      // ===== API Intelligence =====
       const apiIntelligence = result.apiIntelligence || {
         total_apis: 0,
         total_categories: 0,
@@ -65,7 +65,7 @@ class StaticAnalysisService {
 
       const highRiskApis = result.highRiskApis || [];
 
-      // ===== NEW: String Intelligence with proper fallback =====
+      // ===== String Intelligence =====
       const stringIntelligence = result.stringIntelligence || {
         total_strings: 0,
         classified_count: 0,
@@ -74,6 +74,30 @@ class StaticAnalysisService {
         ioc_candidates: 0,
         severity_summary: { low: 0, medium: 0, high: 0, critical: 0 },
         top_categories: [],
+      };
+
+      // ===== Resource Intelligence =====
+      const resourceDetails = result.resourceDetails || [];
+      const resourceSummary = result.resourceSummary || {
+        total_resources: 0,
+        suspicious_resources: 0,
+        total_size: 0,
+        categories: {},
+        types: {},
+        has_suspicious: false,
+      };
+
+      // ===== Signature Analysis =====
+      const signatureAnalysis = result.signatureAnalysis || {
+        is_signed: false,
+        verification_status: 'Not verified',
+        certificate_chain: [],
+        certificate_count: 0,
+        is_timestamped: false,
+        is_trusted: false,
+        is_expired: false,
+        is_revoked: false,
+        warnings: [],
       };
 
       // ===== Create StaticAnalysis record =====
@@ -91,18 +115,16 @@ class StaticAnalysisService {
         strings: result.strings || { ascii: [], unicode: [], suspicious: [] },
         entropy: result.entropy || { overall: 0, sections: [], highEntropySections: [] },
         resources: result.resources || [],
+        resourceDetails: resourceDetails,
+        resourceSummary: resourceSummary,
         tls: result.tls || null,
         debugInfo: result.debugInfo || null,
         richHeader: result.richHeader || null,
         signature: result.signature || { signed: false },
-        
-        // ===== API Intelligence =====
+        signatureAnalysis: signatureAnalysis,
         apiIntelligence: apiIntelligence,
         highRiskApis: highRiskApis,
-        
-        // ===== NEW: String Intelligence =====
         stringIntelligence: stringIntelligence,
-        
         yaraMatches: result.yaraMatches || [],
         findings: result.findings || [],
         processedAt: new Date(),
@@ -111,27 +133,6 @@ class StaticAnalysisService {
         errors: pythonResult.errors || [],
         version: '2.0.0',
         rawResult: result,
-        // In the StaticAnalysis creation, add:
-resourceDetails: result.resourceDetails || [],
-resourceSummary: result.resourceSummary || {
-  total_resources: 0,
-  suspicious_resources: 0,
-  total_size: 0,
-  categories: {},
-  types: {},
-  has_suspicious: false,
-},
-signatureAnalysis: result.signatureAnalysis || {
-  is_signed: false,
-  verification_status: 'Not verified',
-  certificate_chain: [],
-  certificate_count: 0,
-  is_timestamped: false,
-  is_trusted: false,
-  is_expired: false,
-  is_revoked: false,
-  warnings: [],
-},
       });
 
       await staticAnalysis.save();
@@ -200,7 +201,7 @@ signatureAnalysis: result.signatureAnalysis || {
       await AnalysisService.addLog(analysisId, 'Static analysis completed successfully', 'info');
 
       // ===== Log completion summary =====
-      logger.info(`Analysis ${analysisId} completed. API Intelligence: ${apiIntelligence.total_apis} APIs, ${highRiskApis.length} high-risk. String Intelligence: ${stringIntelligence.total_strings} strings, ${stringIntelligence.classified_count} classified.`);
+      logger.info(`Analysis ${analysisId} completed. API: ${apiIntelligence.total_apis} APIs, String: ${stringIntelligence.total_strings} strings, Resources: ${resourceSummary.total_resources}, Signed: ${signatureAnalysis.is_signed}`);
 
       return {
         staticAnalysis,
@@ -214,6 +215,7 @@ signatureAnalysis: result.signatureAnalysis || {
       throw error;
     }
   }
+
 
   /**
    * Extract configuration indicators from static analysis results
