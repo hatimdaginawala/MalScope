@@ -1,4 +1,3 @@
-# SECURITY.md - MalScope Security Policy
 
 # Security Policy
 
