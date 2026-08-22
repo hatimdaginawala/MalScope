@@ -4,6 +4,7 @@ const ThreatIntelController = require('../controllers/threatIntelController');
 const { authenticate, authorize } = require('../middleware/authMiddleware');
 
 // ===== Existing IOC routes =====
+router.get('/iocs', authenticate, ThreatIntelController.listIOCs);
 router.get('/iocs/search', authenticate, ThreatIntelController.searchIOCs);
 router.get('/iocs/stats', authenticate, ThreatIntelController.getIOCStats);
 router.get('/iocs/:id', authenticate, ThreatIntelController.getIOC);

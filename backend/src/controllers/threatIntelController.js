@@ -10,6 +10,17 @@ const { ApiError } = require('../middleware/errorMiddleware');
 
 class ThreatIntelController {
   // ===== Existing IOC methods =====
+  static async listIOCs(req, res, next) {
+    try {
+      const { page, limit, search } = req.query;
+      const result = await IOCService.searchIOCs(search || null, parseInt(page) || 1, parseInt(limit) || 50);
+      res.status(200).json({ success: true, data: result.iocs, pagination: result.pagination });
+    } catch (error) {
+      logger.error(`Failed to list IOCs: ${error.message}`, { error });
+      next(error);
+    }
+  }
+
   static async searchIOCs(req, res, next) {
     try {
       const { query, page, limit } = req.query;

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Behaviors - MalScope</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <script>
+        (function () {
+            var saved = localStorage.getItem('malscope_theme');
+            if (saved === 'light') {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+    <script src="assets/vendor/tailwind.js"></script>
+    <script src="assets/vendor/sweetalert2.js"></script>
+    <script src="assets/vendor/lucide.js"></script>
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="flex" style="background-color: var(--ink); color: var(--text-main);">
+
+    <div class="scan-sweep" aria-hidden="true"></div>
+
+    <div id="sidebar-container"></div>
+
+    <main class="flex-1 ml-64 h-screen flex flex-col overflow-hidden">
+        <header class="console-topbar py-4 px-8 flex justify-between items-center z-10">
+            <div>
+                <p class="console-eyebrow mb-0.5">MalScope // Findings</p>
+                <h2 class="console-title">Detected Behaviors</h2>
+            </div>
+            <div class="flex items-center gap-4">
+                <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch to light theme" title="Switch theme">
+                    <i data-lucide="moon" class="icon-dark w-4 h-4"></i>
+                    <i data-lucide="sun" class="icon-light w-4 h-4"></i>
+                </button>
+            </div>
+        </header>
+
+        <div class="p-8 flex-1 overflow-y-auto">
+            <div class="scope-card p-0 flex flex-col h-full max-h-[800px]">
+                <span class="reticle-corner tl"></span><span class="reticle-corner tr"></span>
+                <span class="reticle-corner bl"></span><span class="reticle-corner br"></span>
+
+                <!-- Toolbar -->
+                <div class="list-toolbar p-4 flex justify-between items-center gap-4">
+                    <div class="search-field w-96">
+                        <i data-lucide="search" class="search-icon w-4 h-4"></i>
+                        <input type="text" id="searchInput" class="block w-full pl-10 pr-3 py-2" placeholder="Search behaviors...">
+                    </div>
+                    <div class="flex gap-2 items-center">
+                        <button id="refreshBtn" class="icon-btn" title="Refresh">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Table -->
+                <div class="flex-1 overflow-auto">
+                    <table class="w-full text-sm text-left whitespace-nowrap case-log">
+                        <thead class="sticky top-0">
+                            <tr>
+                                <th class="px-6 py-4">Category</th>
+                                <th class="px-6 py-4">Severity</th>
+                                <th class="px-6 py-4">Description</th>
+                                <th class="px-6 py-4">Confidence</th>
+                            </tr>
+                        </thead>
+                        <tbody id="behaviorsTable">
+                            <tr><td colspan="4" class="px-6 py-8 text-center empty-row">Loading behaviors...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Pagination -->
+                <div class="list-footer p-4 flex justify-between items-center">
+                    <span id="pageInfo">Showing 0 results</span>
+                    <div class="flex gap-2">
+                        <button id="prevBtn" disabled class="pagination-btn">Prev</button>
+                        <button id="nextBtn" disabled class="pagination-btn">Next</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="assets/js/behaviors.js"></script>
+</body>
+</html>

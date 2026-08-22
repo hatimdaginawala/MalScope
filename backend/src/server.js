@@ -22,6 +22,7 @@ const staticAnalysisRoutes = require('./routes/staticAnalysisRoutes');
 const threatIntelRoutes = require('./routes/threatIntelRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 // Import models
 require('./models/User');
@@ -73,6 +74,7 @@ app.use('/api/v1/analyses', staticAnalysisRoutes);
 app.use('/api/v1/threat-intel', threatIntelRoutes);
 app.use('/api/v1/reports', reportRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/users', userRoutes);
 
 // 404 handler
 app.use(notFoundHandler);

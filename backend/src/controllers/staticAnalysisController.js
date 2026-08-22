@@ -149,13 +149,13 @@ class StaticAnalysisController {
         : findings;
 
       res.status(200).json({
-        success: true,
-        data: {
-          total: filteredFindings.length,
-          findings: filteredFindings,
-          bySeverity: this._groupBySeverity(findings),
-        },
-      });
+      success: true,
+      data: {
+        total: filteredFindings.length,
+        findings: filteredFindings,
+        bySeverity: StaticAnalysisController._groupBySeverity(findings),
+      },
+    });
     } catch (error) {
       logger.error(`Failed to get static analysis findings: ${error.message}`, { error });
       next(error);

@@ -1,4 +1,5 @@
 const MalwareSample = require('../models/MalwareSample');
+const { Analysis } = require('../models/Analysis');
 const AnalysisService = require('../services/analysisService');
 const ThreatAssessment = require('../models/ThreatAssessment');
 const IOCService = require('../services/iocService');
@@ -19,12 +20,12 @@ class DashboardController {
         recentSamples,
         recentAnalyses,
       ] = await Promise.all([
-        this._getSampleStats(),
+        DashboardController._getSampleStats(),
         AnalysisService.getStats(),
-        this._getThreatStats(),
+        DashboardController._getThreatStats(),
         IOCService.getStats(),
-        this._getRecentSamples(10),
-        this._getRecentAnalyses(10),
+        DashboardController._getRecentSamples(10),
+        DashboardController._getRecentAnalyses(10),
       ]);
 
       res.status(200).json({
@@ -120,7 +121,7 @@ class DashboardController {
 
       const analyses = await AnalysisService._getAnalysesInRange(startDate, new Date());
 
-      const timeline = this._buildTimeline(analyses, days);
+      const timeline = DashboardController._buildTimeline(analyses, days);
 
       res.status(200).json({
         success: true,
@@ -240,10 +241,10 @@ class DashboardController {
   static async getWidgets(req, res, next) {
     try {
       const [sampleStats, threatStats, iocStats, recentAlerts] = await Promise.all([
-        this._getSampleStats(),
-        this._getThreatStats(),
+        DashboardController._getSampleStats(),
+        DashboardController._getThreatStats(),
         IOCService.getStats(),
-        this._getRecentAlerts(5),
+        DashboardController._getRecentAlerts(5),
       ]);
 
       res.status(200).json({
@@ -373,3 +374,4 @@ IOCService._getRecentHighSeverity = async function(limit) {
 };
 
 module.exports = DashboardController;
+

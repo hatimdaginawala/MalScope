@@ -30,6 +30,17 @@ router.get(
 );
 
 /**
+ * @route   GET /api/v1/analyses/sample/:sampleId
+ * @desc    Get analyses for a specific sample
+ * @access  Private
+ */
+router.get(
+  '/sample/:sampleId',
+  authenticate,
+  AnalysisController.getAnalysesForSample
+);
+
+/**
  * @route   GET /api/v1/analyses/:id/status
  * @desc    Get analysis status
  * @access  Private
@@ -49,17 +60,6 @@ router.get(
   '/:id',
   authenticate,
   AnalysisController.getAnalysis
-);
-
-/**
- * @route   GET /api/v1/analyses/sample/:sampleId
- * @desc    Get analyses for a specific sample
- * @access  Private
- */
-router.get(
-  '/sample/:sampleId',
-  authenticate,
-  AnalysisController.getAnalysesForSample
 );
 
 /**

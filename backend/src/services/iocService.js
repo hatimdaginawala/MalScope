@@ -466,13 +466,16 @@ static async searchIOCs(query, page = 1, limit = 50) {
   try {
     const skip = (page - 1) * limit;
 
-    const searchRegex = new RegExp(query, 'i');
-    const filter = {
-      $or: [
-        { value: searchRegex },
-        { normalizedValue: searchRegex },
-      ],
-    };
+    let filter = {};
+    if (query) {
+      const searchRegex = new RegExp(query, 'i');
+      filter = {
+        $or: [
+          { value: searchRegex },
+          { normalizedValue: searchRegex },
+        ],
+      };
+    }
 
     const [iocs, total] = await Promise.all([
       IOC.find(filter)
@@ -512,6 +515,7 @@ static async searchIOCs(query, page = 1, limit = 50) {
     throw error;
   }
 }
+
 
   /**
    * Get IOC statistics

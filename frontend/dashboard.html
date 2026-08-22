@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - MalScope</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <script src="assets/vendor/tailwind.js"></script>
+    <script src="assets/vendor/sweetalert2.js"></script>
+    <script src="assets/vendor/chart.js"></script>
+    <script src="assets/vendor/lucide.js"></script>
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="flex" style="background-color: var(--ink); color: var(--text-main);">
+
+    <!-- One-time scan sweep on load -->
+    <div class="scan-sweep" aria-hidden="true"></div>
+
+    <!-- Sidebar Injected Here -->
+    <div id="sidebar-container"></div>
+
+    <main class="flex-1 ml-64 h-screen overflow-y-auto">
+        <header class="console-topbar py-4 px-8 flex justify-between items-center sticky top-0 z-10">
+            <div>
+                <p class="console-eyebrow mb-0.5">MalScope // Operations</p>
+                <h2 class="console-title">Security Dashboard</h2>
+            </div>
+            <div class="flex items-center gap-4">
+                <span class="live-indicator"><span class="dot"></span>Live feed</span>
+                <span id="userGreeting" class="user-chip"></span>
+            </div>
+        </header>
+
+        <div class="p-8 max-w-7xl mx-auto space-y-6">
+            <!-- Stats Row -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" id="statsContainer">
+                <div class="skeleton h-28"></div>
+                <div class="skeleton h-28"></div>
+                <div class="skeleton h-28"></div>
+                <div class="skeleton h-28"></div>
+            </div>
+
+            <!-- Charts Row -->
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="scope-card lg:col-span-2">
+                    <span class="reticle-corner tl"></span><span class="reticle-corner tr"></span>
+                    <span class="reticle-corner bl"></span><span class="reticle-corner br"></span>
+                    <p class="scan-label mb-4">Analysis timeline // 7d</p>
+                    <div class="relative h-72 w-full">
+                        <canvas id="timelineChart"></canvas>
+                    </div>
+                </div>
+                <div class="scope-card">
+                    <span class="reticle-corner tl"></span><span class="reticle-corner tr"></span>
+                    <span class="reticle-corner bl"></span><span class="reticle-corner br"></span>
+                    <p class="scan-label mb-4">Threat distribution // verdict</p>
+                    <div class="relative h-72 w-full flex justify-center">
+                        <canvas id="threatChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alerts Row -->
+            <div class="scope-card scope-card--alert">
+                <span class="reticle-corner tl"></span><span class="reticle-corner tr"></span>
+                <span class="reticle-corner bl"></span><span class="reticle-corner br"></span>
+                <div class="flex justify-between items-center mb-4">
+                    <p class="scan-label">Recent high-severity alerts // case log</p>
+                    <button class="view-all-link">View all</button>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left case-log">
+                        <thead>
+                            <tr>
+                                <th class="px-4 py-3">Timestamp</th>
+                                <th class="px-4 py-3">File hash</th>
+                                <th class="px-4 py-3">Threat type</th>
+                                <th class="px-4 py-3 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="alertsTable">
+                            <tr><td colspan="4" class="px-4 py-6 text-center empty-row">Scanning for alerts...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script type="module" src="assets/js/dashboard.js"></script>
+</body>
+</html>

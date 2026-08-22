@@ -8,14 +8,14 @@ class VirusTotalService {
   constructor() {
     this.apiKey = environment.vtApiKey;
     this.baseURL = 'https://www.virustotal.com/api/v3';
-    this.isEnabled = !!this.apiKey && this.apiKey !== 'ad764f700f897eceef2c3aaab4256752a9619b7a1f11b8daadcc0155d189d9ad';
+    this._enabled = !!this.apiKey && this.apiKey !== 'ad764f700f897eceef2c3aaab4256752a9619b7a1f11b8daadcc0155d189d9ad';
   }
 
   /**
    * Check if VirusTotal integration is enabled
    */
   isEnabled() {
-    return this.isEnabled;
+    return this._enabled;
   }
 
   /**
@@ -33,7 +33,7 @@ class VirusTotalService {
    */
   async getFileReport(hash, analysisId = null, sampleId = null) {
     try {
-      if (!this.isEnabled) {
+      if (!this.isEnabled()) {
         logger.warn('VirusTotal API key not configured, skipping enrichment');
         return null;
       }

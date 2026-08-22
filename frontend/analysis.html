@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Static Analysis - MalScope</title>
+    <script src="assets/vendor/tailwind.js"></script>
+    <script src="assets/vendor/sweetalert2.js"></script>
+    <script src="assets/vendor/lucide.js"></script>
+    <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body class="flex bg-slate-900 text-slate-50 overflow-hidden">
+    
+    <div id="sidebar-container"></div>
+
+    <main class="flex-1 ml-64 h-screen flex flex-col overflow-hidden">
+        <header class="bg-slate-800 border-b border-slate-700 py-4 px-8 flex justify-between items-center z-10">
+            <div>
+                <div class="flex items-center gap-3 mb-1">
+                    <h2 class="text-xl font-semibold">Static Analysis</h2>
+                    <span id="statusBadge" class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-slate-700 text-slate-300">Loading...</span>
+                </div>
+                <p id="hashLabel" class="text-slate-400 text-sm mono">...</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <button id="reanalyzeBtn" class="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded-lg text-sm transition-colors flex items-center gap-2">
+                    <i data-lucide="refresh-cw" class="w-4 h-4"></i> Re-Analyze
+                </button>
+            </div>
+        </header>
+
+        <!-- Tabs -->
+        <div class="bg-slate-800 border-b border-slate-700 px-8">
+            <nav class="flex gap-6 -mb-px text-sm font-medium" id="tabsNav">
+                <button class="tab-btn active text-emerald-500 border-b-2 border-emerald-500 py-4" data-target="summary">Summary</button>
+                <button class="tab-btn text-slate-400 hover:text-slate-300 py-4 border-b-2 border-transparent" data-target="signatures">Signatures</button>
+                <button class="tab-btn text-slate-400 hover:text-slate-300 py-4 border-b-2 border-transparent" data-target="api-intel">API Intel</button>
+                <button class="tab-btn text-slate-400 hover:text-slate-300 py-4 border-b-2 border-transparent" data-target="imports">Imports/Exports</button>
+                <button class="tab-btn text-slate-400 hover:text-slate-300 py-4 border-b-2 border-transparent" data-target="sections">PE Sections</button>
+                <button class="tab-btn text-slate-400 hover:text-slate-300 py-4 border-b-2 border-transparent" data-target="strings">Strings</button>
+            </nav>
+        </div>
+
+        <div class="p-8 flex-1 overflow-y-auto">
+            
+            <!-- Summary Tab -->
+            <div id="tab-summary" class="tab-content space-y-6">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div class="card p-6">
+                        <h3 class="font-medium text-slate-300 mb-4 border-b border-slate-700 pb-2">File Information</h3>
+                        <table class="w-full text-sm text-left">
+                            <tbody class="divide-y divide-slate-700/50" id="fileInfoTable">
+                                <tr><td class="py-2 text-slate-500">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="card p-6">
+                        <h3 class="font-medium text-slate-300 mb-4 border-b border-slate-700 pb-2">Hashes</h3>
+                        <table class="w-full text-sm text-left">
+                            <tbody class="divide-y divide-slate-700/50" id="hashesTable">
+                                <tr><td class="py-2 text-slate-500">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Other tabs will be populated dynamically -->
+            <div id="tab-signatures" class="tab-content hidden card p-6">
+                <h3 class="font-medium text-slate-300 mb-4 border-b border-slate-700 pb-2">YARA & Anti-Virus Signatures</h3>
+                <div id="signaturesContent" class="text-sm">Loading...</div>
+            </div>
+
+            <div id="tab-api-intel" class="tab-content hidden card p-6">
+                <h3 class="font-medium text-slate-300 mb-4 border-b border-slate-700 pb-2">Suspicious API Calls</h3>
+                <div id="apiIntelContent" class="text-sm">Loading...</div>
+            </div>
+
+            <div id="tab-imports" class="tab-content hidden card p-6">
+                <h3 class="font-medium text-slate-300 mb-4 border-b border-slate-700 pb-2">Import Address Table (IAT)</h3>
+                <div id="importsContent" class="text-sm">Loading...</div>
+            </div>
+
+            <div id="tab-sections" class="tab-content hidden card p-6">
+                <h3 class="font-medium text-slate-300 mb-4 border-b border-slate-700 pb-2">PE Sections & Entropy</h3>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm text-left whitespace-nowrap">
+                        <thead class="text-xs text-slate-400 uppercase bg-slate-800">
+                            <tr>
+                                <th class="px-4 py-3">Name</th>
+                                <th class="px-4 py-3">Virtual Address</th>
+                                <th class="px-4 py-3">Virtual Size</th>
+                                <th class="px-4 py-3">Raw Size</th>
+                                <th class="px-4 py-3">Entropy</th>
+                            </tr>
+                        </thead>
+                        <tbody id="sectionsContent" class="divide-y divide-slate-700/50">
+                            <tr><td colspan="5" class="px-4 py-4 text-slate-500">Loading...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div id="tab-strings" class="tab-content hidden card p-0 flex flex-col h-[600px]">
+                <div class="p-4 border-b border-slate-700 bg-slate-800/50 flex justify-between items-center rounded-t-lg">
+                    <h3 class="font-medium text-slate-300">Extracted Strings</h3>
+                    <input type="text" id="stringSearch" class="px-3 py-1.5 text-sm rounded-lg" placeholder="Filter strings...">
+                </div>
+                <div class="flex-1 overflow-auto p-4 bg-slate-900/50">
+                    <pre id="stringsContent" class="text-xs text-slate-300 mono leading-relaxed">Loading...</pre>
+                </div>
+            </div>
+
+        </div>
+    </main>
+    
+    <script type="module" src="assets/js/analysis.js"></script>
+</body>
+</html>
