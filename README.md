@@ -1,4 +1,4 @@
-```markdown
+
 # MalScope
 
 > **Advanced Static Malware Analysis and Threat Intelligence Platform**
