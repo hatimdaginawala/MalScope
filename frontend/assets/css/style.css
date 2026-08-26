@@ -644,6 +644,25 @@ input:focus, select:focus, textarea:focus {
     color: var(--text-main);
 }
 
+.export-btn {
+    font-family: var(--font-mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    background: var(--panel-raised);
+    margin-left: 0.4rem;
+    cursor: pointer;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+.export-btn:hover {
+    border-color: var(--accent-info);
+    color: var(--accent-info);
+}
+
 /* ---- Loading skeletons ----------------------------------------------------- */
 .skeleton {
     position: relative;
